@@ -1,66 +1,193 @@
-# resume-interview-workbench
+# Resume Interview Workbench
 
-本仓库用于构建一个本地运行的简历模拟面试工作台。
+一个基于结构化简历输入的本地 AI 面试工作台。
 
-目标不是做一个通用聊天机器人，而是做一个能够读取结构化简历数据、在本地发起模拟面试、记录对话过程并支持后续分析的独立应用。
+这个项目的核心目标不是做通用聊天，而是围绕“候选人简历 + 岗位要求 + 面试官角色”构建一套可观察、可追问、可复盘的模拟面试系统。它支持根据简历内容动态出题，按主题线程持续深挖，并通过状态图帮助你理解 AI 面试官在每一轮中的思考和决策路径。
 
 ## 项目定位
 
-- 本地运行，不依赖静态站点部署
-- 以结构化简历数据为输入
-- 以模拟面试、追问、复盘为核心场景
-- 与个人简历站解耦，作为独立工具演进
+- 以 `resume-package/` 作为默认输入包
+- 以结构化简历数据驱动模拟面试流程
+- 以“岗位模板 + 面试官角色 + 多轮追问 + 复盘报告”为主线
+- 以本地 Web 工作台作为主要交互界面
+- 以可观测状态机和线程图谱作为调试与理解辅助
 
-## 数据来源
+## 当前能力
 
-当前规划中，本项目会消费由 `zgx197.github.io` 仓库导出的简历数据包。
+当前仓库已经包含一套可运行的本地 MVP，主要能力如下：
+
+- 从 `resume-package/` 读取结构化简历输入
+- 从 `interview-kit/roles/` 与 `interview-kit/jobs/` 读取角色和岗位基座
+- 支持模板化面试配置
+  - 公司名称
+  - 公司介绍
+  - 岗位方向
+  - 岗位介绍
+  - 其他上下文
+  - 面试官角色
+- 支持使用 Kimi / Moonshot 作为主模型
+- 支持 fallback interviewer，在未配置模型时仍可本地跑通流程
+- 支持联网搜索能力开关
+- 支持按阶段输出状态信息
+  - 观察
+  - 思考
+  - 决策
+  - 执行
+  - 反馈
+- 支持面试线程视角
+  - 当前 topic thread
+  - 追问次数
+  - 搜索次数
+  - 关闭原因
+- 支持 SSE 事件流更新
+- 支持结构化复盘报告
+
+## 界面设计原则
+
+这个工作台的主交互对象始终是“AI 面试官”本身。
+
+因此当前界面设计遵循下面的优先级：
+
+1. 中心区域优先服务于面试对话
+2. 状态图用于辅助理解当前回合的状态流转
+3. 计划、报告等模块只保留为次级辅助信息
+
+状态图不是主页面本身，而是帮助你观察 AI 面试官当前处于什么阶段、为什么继续追问、何时切题、何时收尾。
+
+## 目录结构
+
+```text
+.
+├─ app/
+│  ├─ server/                  # Node.js 本地服务、面试流程、Provider 接入、SSE
+│  └─ web/                     # 前端工作台页面
+├─ interview-kit/
+│  ├─ jobs/                    # 岗位配置基座
+│  ├─ roles/                   # 面试官角色基座
+│  └─ templates/               # 模板化输入示例
+├─ resume-package/
+│  ├─ resume.json              # 结构化简历正文
+│  ├─ resume.schema.json       # 简历结构 schema
+│  ├─ resume.meta.json         # 简历元信息
+│  └─ README.md                # 简历输入包说明
+├─ sessions/                   # 本地会话数据
+└─ .env.example                # 环境变量示例
+```
+
+## 快速开始
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 配置环境变量
+
+复制 `.env.example` 为 `.env`，按需填写模型配置。
+
+最小示例：
+
+```env
+AI_PROVIDER=moonshot
+MOONSHOT_API_KEY=your_key_here
+MOONSHOT_BASE_URL=https://api.moonshot.cn/v1
+MOONSHOT_MODEL=kimi-k2.5
+MOONSHOT_THINKING=enabled
+```
+
+如果不配置模型 Key，系统会自动回退到本地 fallback interviewer。
+
+### 3. 启动服务
+
+```bash
+npm run dev
+```
+
+或：
+
+```bash
+npm start
+```
+
+默认访问地址：
+
+```text
+http://localhost:3000
+```
+
+## 常用命令
+
+```bash
+npm run check
+npm run test:kimi
+npm run test:kimi-search
+npm run smoke:session
+npm run smoke:session-search
+```
+
+说明：
+
+- `check`：校验输入包、配置和基础链路
+- `test:kimi`：测试 Kimi 基础调用
+- `test:kimi-search`：测试 Kimi 搜索工具调用
+- `smoke:session`：跑通一次本地面试会话烟雾测试
+- `smoke:session-search`：跑通启用搜索的面试会话烟雾测试
+
+## 模型与工具策略
+
+当前实现支持按阶段区分模型策略，目标是在保证关键阶段质量的同时降低时延：
+
+- 高价值阶段可开启 thinking
+- 普通评估和部分收尾阶段可降级策略
+- 搜索与工具调用由 AI 在流程中按需判断
+
+系统设计上已经开始围绕以下层次进行拆分：
+
+- 思考层
+- 决策层
+- 执行层
+- 反馈层
+
+这使后续扩展更容易，例如：
+
+- 更细粒度的搜索决策
+- 多工具路由
+- 不同角色下的策略差异
+- 更稳定的终止条件判断
+
+## 输入数据原则
+
+本仓库默认消费外部整理好的结构化简历数据，而不是把简历编辑逻辑塞进项目本身。
 
 推荐读取顺序：
 
-1. `README.md`
-2. `resume.meta.json`
-3. `resume.schema.json`
-4. `resume.json`
+1. `resume-package/README.md`
+2. `resume-package/resume.meta.json`
+3. `resume-package/resume.schema.json`
+4. `resume-package/resume.json`
 
-这意味着本仓库不负责维护简历事实本身，而是负责消费外部导出的结构化简历数据。
+这样可以把“简历生产”与“面试消费”清晰解耦，便于后续将 `resume-package/` 作为整套系统的标准输入。
 
-## 当前状态
+## 安全说明
 
-当前已经有一版最小可运行的本地 Web MVP：
+- `.env` 已在 `.gitignore` 中忽略，不会默认进入版本库
+- 仓库中应只保留 `.env.example`，不要提交真实 API Key
+- 所有模型密钥都应通过本地环境变量注入
+- 推送代码前建议再次检查暂存区，避免把任何明文 token 提交到远程
 
-- 默认从 `resume-package/` 读取结构化简历输入包
-- 从 `interview-kit/roles/` 和 `interview-kit/jobs/` 读取面试官角色与岗位配置
-- 后端使用原生 Node.js HTTP 服务
-- 前端使用原生 HTML/CSS/JS
-- 未配置 `OPENAI_API_KEY` 时，系统会自动使用本地 fallback 模式
+## 后续扩展方向
 
-启动方式：
-
-1. 可选：复制 `.env.example` 为 `.env` 并填写 `MOONSHOT_API_KEY`
-2. 运行 `node app/server/server.js`
-3. 打开 `http://localhost:3000`
-
-后续建议优先完成的内容：
-
-1. 将 fallback 规则继续收紧成更稳定的提问与评分策略
-2. 接入真实 LLM provider 的流式输出与更严格的结构化约束
-3. 把面试记录、复盘报告和配置管理从 JSON 文件升级为更稳定的本地存储
-4. 在当前会话模型基础上扩展更细的追问策略、知识点覆盖率和评估维度
-
-## 方向建议
-
-建议先从本地 Web App 开始，而不是一开始就做桌面壳：
-
-- 前端：React + Vite
-- 后端：Node.js
-- 存储：本地 JSON 或 SQLite
-- 配置：`.env`
-
-这样开发速度更快，也更方便反复调整 prompt、会话状态和导入流程。
+- 增强线程级闭环可视化与节点锁定机制
+- 增强模板向导与模板版本管理
+- 引入更稳定的模型分级策略与工具路由
+- 把复盘报告进一步结构化，支持导出
+- 增加更多岗位与面试官角色基座
+- 支持更强的多轮追问和覆盖率控制
 
 ## 仓库原则
 
-- 简历事实以外部导出包为准
-- 本仓库只做读取、解释、面试流程和本地交互
-- 不把外部 AI 使用方式预设回简历导出层
-- 优先保证本地可调试、可复盘、可扩展
+- 简历事实以结构化输入包为准
+- 本仓库聚焦面试流程、状态管理和本地交互
+- 优先保证可调试、可复盘、可扩展
+- 所有功能演进都尽量围绕“后续可扩展”而不是一次性原型堆砌
