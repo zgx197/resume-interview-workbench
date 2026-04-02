@@ -1,0 +1,38 @@
+# Node / package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+coverage/
+.vite/
+
+# Env / local config
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local runtime data
+tmp/
+.tmp/
+data/
+sessions/
+storage/
+
+# Test artifacts
+playwright-report/
+test-results/
