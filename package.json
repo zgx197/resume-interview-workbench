@@ -1,0 +1,18 @@
+{
+  "name": "resume-interview-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node app/server/server.js",
+    "dev": "node --watch app/server/server.js",
+    "check": "node app/server/scripts/check.js",
+    "test:kimi": "node app/server/scripts/test-kimi.js",
+    "smoke:session": "node app/server/scripts/smoke-session.js",
+    "test:kimi-search": "node app/server/scripts/test-kimi-search.js",
+    "smoke:session-search": "node app/server/scripts/smoke-session-search.js"
+  },
+  "dependencies": {
+    "vis-network": "^10.0.2"
+  }
+}

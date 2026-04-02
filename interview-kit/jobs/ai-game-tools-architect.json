@@ -1,0 +1,22 @@
+{
+  "id": "ai-game-tools-architect",
+  "title": "AI 游戏工具链架构师",
+  "description": "关注工具链架构、DSL、内容生产闭环、AI Agent 设计与工程治理。",
+  "questionAreas": [
+    "system_design",
+    "ai_agent_design",
+    "game_framework",
+    "language_fundamentals"
+  ],
+  "mustHave": [
+    "能够设计复杂工具链与运行时边界",
+    "理解 DSL、数据契约和导入导出链路",
+    "能将 AI 能力整合进现有研发流程",
+    "重视验证、回滚和可维护性"
+  ],
+  "niceToHave": [
+    "Unity 编辑器平台经验",
+    "确定性技能系统经验",
+    "NLP / 知识图谱相关背景"
+  ]
+}

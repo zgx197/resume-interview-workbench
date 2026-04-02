@@ -26,14 +26,26 @@
 
 ## 当前状态
 
-仓库初始化阶段，当前仅建立基础说明文档与忽略规则。
+当前已经有一版最小可运行的本地 Web MVP：
+
+- 默认从 `resume-package/` 读取结构化简历输入包
+- 从 `interview-kit/roles/` 和 `interview-kit/jobs/` 读取面试官角色与岗位配置
+- 后端使用原生 Node.js HTTP 服务
+- 前端使用原生 HTML/CSS/JS
+- 未配置 `OPENAI_API_KEY` 时，系统会自动使用本地 fallback 模式
+
+启动方式：
+
+1. 可选：复制 `.env.example` 为 `.env` 并填写 `MOONSHOT_API_KEY`
+2. 运行 `node app/server/server.js`
+3. 打开 `http://localhost:3000`
 
 后续建议优先完成的内容：
 
-1. 确定技术栈与目录结构
-2. 接入本地简历数据包读取流程
-3. 设计本地面试会话模型
-4. 搭建最小可运行的前后端骨架
+1. 将 fallback 规则继续收紧成更稳定的提问与评分策略
+2. 接入真实 LLM provider 的流式输出与更严格的结构化约束
+3. 把面试记录、复盘报告和配置管理从 JSON 文件升级为更稳定的本地存储
+4. 在当前会话模型基础上扩展更细的追问策略、知识点覆盖率和评估维度
 
 ## 方向建议
 

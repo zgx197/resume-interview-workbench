@@ -1,0 +1,24 @@
+{
+  "id": "unity-gameplay-engineer",
+  "title": "Unity 游戏开发工程师",
+  "description": "关注 C# 基础、Unity 运行时、常见游戏框架、性能优化和玩法系统工程化能力。",
+  "questionAreas": [
+    "language_fundamentals",
+    "game_algorithms",
+    "game_framework",
+    "system_design",
+    "ai_agent_design"
+  ],
+  "mustHave": [
+    "扎实的 C# 语言基础和常见设计能力",
+    "理解 Unity 生命周期、资源组织和运行时系统",
+    "具备游戏算法和数据结构基础",
+    "具备性能优化和调试经验",
+    "能设计可维护的系统模块和工具链"
+  ],
+  "niceToHave": [
+    "编辑器扩展经验",
+    "程序化生成经验",
+    "AI Agent 或研发辅助工具经验"
+  ]
+}

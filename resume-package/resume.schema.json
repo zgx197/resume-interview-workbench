@@ -1,0 +1,929 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zgx197.top/resume.schema.json",
+  "title": "ZGX Resume Export Schema",
+  "description": "张国鑫简历导出数据的字段结构说明。该文档只描述结构、类型与基础语义，不预设外部系统如何消费这份数据。",
+  "type": "object",
+  "required": [
+    "packageVersion",
+    "packageType",
+    "exportedAt",
+    "source",
+    "resume"
+  ],
+  "properties": {
+    "packageVersion": {
+      "type": "string",
+      "description": "导出包版本号。结构发生不兼容变化时应升级。"
+    },
+    "packageType": {
+      "type": "string",
+      "const": "resume-data-export",
+      "description": "导出包类型标识，当前固定为 resume-data-export。"
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "导出时间，ISO 8601 格式。"
+    },
+    "source": {
+      "type": "object",
+      "description": "数据来源信息，帮助消费方理解这份数据来自哪个站点和入口。",
+      "required": [
+        "site",
+        "resumePath",
+        "jsonPath",
+        "metaPath",
+        "schemaPath"
+      ],
+      "properties": {
+        "site": {
+          "type": "string",
+          "description": "原始简历站点域名。"
+        },
+        "resumePath": {
+          "type": "string",
+          "description": "原始网页简历路径。"
+        },
+        "jsonPath": {
+          "type": "string",
+          "description": "当前简历 JSON 导出路径。"
+        },
+        "metaPath": {
+          "type": "string",
+          "description": "当前简历说明文档 JSON 导出路径。"
+        },
+        "schemaPath": {
+          "type": "string",
+          "description": "当前 schema 文档路径。"
+        }
+      }
+    },
+    "resume": {
+      "$ref": "#/$defs/resumeSchema",
+      "description": "结构化简历主体数据。字段语义与网页展示共用同一套数据源。"
+    }
+  },
+  "$defs": {
+    "linkItem": {
+      "type": "object",
+      "required": [
+        "label",
+        "href"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "链接展示名称。"
+        },
+        "href": {
+          "type": "string",
+          "description": "链接地址或站内路径。"
+        },
+        "external": {
+          "type": "boolean",
+          "description": "是否为站外链接。true 时通常需要新窗口打开。"
+        }
+      }
+    },
+    "focusArea": {
+      "type": "object",
+      "required": [
+        "title",
+        "description"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "关注方向名称。"
+        },
+        "description": {
+          "type": "string",
+          "description": "该方向的说明文案。"
+        }
+      }
+    },
+    "detailLayerContent": {
+      "type": "object",
+      "description": "带有分层来源的补充说明。refined 通常是整理后的详细补充，original 是原始简历表述。",
+      "properties": {
+        "refinedTitle": {
+          "type": "string"
+        },
+        "refined": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "originalTitle": {
+          "type": "string"
+        },
+        "original": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "experienceItem": {
+      "type": "object",
+      "required": [
+        "id",
+        "company",
+        "role",
+        "period",
+        "summary",
+        "bullets"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "工作经历稳定 ID，适合外部系统做映射。"
+        },
+        "company": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "period": {
+          "type": "string",
+          "description": "经历时间范围，保留原始展示文案。"
+        },
+        "summary": {
+          "type": "string",
+          "description": "该经历的摘要说明。"
+        },
+        "bullets": {
+          "type": "array",
+          "description": "候选人希望突出的核心贡献点。",
+          "items": {
+            "type": "string"
+          }
+        },
+        "details": {
+          "$ref": "#/$defs/detailLayerContent"
+        },
+        "projectSlugs": {
+          "type": "array",
+          "description": "与该段经历直接关联的项目 slug 列表。",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "skillGroup": {
+      "type": "object",
+      "required": [
+        "title",
+        "items"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "showcaseBlock": {
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "showcaseCard": {
+      "type": "object",
+      "required": [
+        "title",
+        "description"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "projectArchiveGroup": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "paragraphs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "projectArchiveSection": {
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "intro": {
+          "type": "string"
+        },
+        "paragraphs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectArchiveGroup"
+          }
+        }
+      }
+    },
+    "projectMediaAsset": {
+      "type": "object",
+      "required": [
+        "kind",
+        "title",
+        "src"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video",
+            "embed"
+          ],
+          "description": "媒体类型。image 表示图片，video 表示视频资源，embed 表示外部嵌入页面。"
+        },
+        "title": {
+          "type": "string"
+        },
+        "src": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        },
+        "poster": {
+          "type": "string"
+        },
+        "external": {
+          "type": "boolean"
+        }
+      }
+    },
+    "projectMediaCollection": {
+      "type": "object",
+      "required": [
+        "gallery",
+        "resources"
+      ],
+      "properties": {
+        "manifestPath": {
+          "type": "string",
+          "description": "项目素材 manifest 的来源路径。"
+        },
+        "featured": {
+          "$ref": "#/$defs/projectMediaAsset"
+        },
+        "gallery": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectMediaAsset"
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/linkItem"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "projectSectionShowcase": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "featuredTitle",
+        "featuredDescription",
+        "sideBlocks",
+        "gallery",
+        "note"
+      ],
+      "properties": {
+        "type": {
+          "const": "showcase"
+        },
+        "title": {
+          "type": "string"
+        },
+        "featuredTitle": {
+          "type": "string"
+        },
+        "featuredDescription": {
+          "type": "string"
+        },
+        "sideBlocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/showcaseBlock"
+          }
+        },
+        "gallery": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/showcaseCard"
+          }
+        },
+        "note": {
+          "type": "string",
+          "description": "展示位说明，适合作为后续扩展或编辑参考。"
+        }
+      }
+    },
+    "projectSectionMetrics": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "metrics"
+        },
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "value",
+              "label"
+            ],
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "projectSectionHighlights": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "highlights"
+        },
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "title",
+              "description"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "projectSectionParagraph": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "paragraphs"
+      ],
+      "properties": {
+        "type": {
+          "const": "paragraph"
+        },
+        "title": {
+          "type": "string"
+        },
+        "paragraphs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "projectSectionBullets": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "bullets"
+        },
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "projectSectionLayeredBullets": {
+      "type": "object",
+      "required": [
+        "type",
+        "title"
+      ],
+      "properties": {
+        "type": {
+          "const": "layered_bullets"
+        },
+        "title": {
+          "type": "string"
+        },
+        "refinedTitle": {
+          "type": "string"
+        },
+        "refinedItems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "originalTitle": {
+          "type": "string"
+        },
+        "originalItems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "projectSectionArchive": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "sections"
+      ],
+      "properties": {
+        "type": {
+          "const": "archive"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectArchiveSection"
+          }
+        }
+      }
+    },
+    "projectSectionTags": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "tags"
+        },
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "projectSectionLinks": {
+      "type": "object",
+      "required": [
+        "type",
+        "title",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "links"
+        },
+        "title": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/linkItem"
+          }
+        }
+      }
+    },
+    "projectSection": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/projectSectionShowcase"
+        },
+        {
+          "$ref": "#/$defs/projectSectionMetrics"
+        },
+        {
+          "$ref": "#/$defs/projectSectionHighlights"
+        },
+        {
+          "$ref": "#/$defs/projectSectionParagraph"
+        },
+        {
+          "$ref": "#/$defs/projectSectionBullets"
+        },
+        {
+          "$ref": "#/$defs/projectSectionLayeredBullets"
+        },
+        {
+          "$ref": "#/$defs/projectSectionArchive"
+        },
+        {
+          "$ref": "#/$defs/projectSectionTags"
+        },
+        {
+          "$ref": "#/$defs/projectSectionLinks"
+        }
+      ]
+    },
+    "projectDetail": {
+      "type": "object",
+      "required": [
+        "slug",
+        "title",
+        "category",
+        "meta",
+        "description",
+        "tags",
+        "eyebrow",
+        "subtitle",
+        "media",
+        "sections"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "description": "项目稳定 slug，适合作为路由和关联键。"
+        },
+        "title": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "featured",
+            "open_source"
+          ],
+          "description": "featured 表示工作项目或重点项目；open_source 表示开源项目。"
+        },
+        "meta": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "eyebrow": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "media": {
+          "$ref": "#/$defs/projectMediaCollection"
+        },
+        "sections": {
+          "type": "array",
+          "description": "项目详情分区。不同 type 表示不同信息密度和组织方式。",
+          "items": {
+            "$ref": "#/$defs/projectSection"
+          }
+        }
+      }
+    },
+    "education": {
+      "type": "object",
+      "required": [
+        "school",
+        "degree",
+        "period",
+        "details"
+      ],
+      "properties": {
+        "school": {
+          "type": "string"
+        },
+        "degree": {
+          "type": "string"
+        },
+        "period": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "honorImageAsset": {
+      "type": "object",
+      "required": [
+        "title",
+        "src"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "src": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "honorReference": {
+      "type": "object",
+      "required": [
+        "label",
+        "value"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "href": {
+          "type": "string"
+        },
+        "external": {
+          "type": "boolean"
+        }
+      }
+    },
+    "honorExtraItem": {
+      "type": "object",
+      "required": [
+        "slug",
+        "title",
+        "images",
+        "references"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/honorImageAsset"
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/honorReference"
+          }
+        }
+      }
+    },
+    "resumeSchema": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "profile",
+        "resume",
+        "projects"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "description": "网页简历内部使用的 schema 版本号。"
+        },
+        "profile": {
+          "type": "object",
+          "required": [
+            "name",
+            "role",
+            "bio",
+            "strengths",
+            "contacts"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "bio": {
+              "type": "string"
+            },
+            "strengths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "contacts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/linkItem"
+              }
+            }
+          }
+        },
+        "resume": {
+          "type": "object",
+          "required": [
+            "headline",
+            "summaryPoints",
+            "focusAreas",
+            "profileFacts",
+            "experiences",
+            "skillGroups",
+            "honors",
+            "honorExtras",
+            "education"
+          ],
+          "properties": {
+            "headline": {
+              "type": "string"
+            },
+            "summaryPoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "focusAreas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/focusArea"
+              }
+            },
+            "profileFacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "experiences": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/experienceItem"
+              }
+            },
+            "skillGroups": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/skillGroup"
+              }
+            },
+            "honors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "honorExtras": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/honorExtraItem"
+              }
+            },
+            "education": {
+              "$ref": "#/$defs/education"
+            }
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectDetail"
+          }
+        }
+      }
+    }
+  }
+}

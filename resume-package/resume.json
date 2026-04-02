@@ -1,0 +1,2579 @@
+{
+  "packageVersion": "resume-data-package@v4",
+  "packageType": "resume-data-export",
+  "exportedAt": "2026-04-02T12:33:00.815Z",
+  "source": {
+    "site": "https://zgx197.top",
+    "resumePath": "/resume",
+    "jsonPath": "/resume.json",
+    "metaPath": "/resume.meta.json",
+    "schemaPath": "/resume.schema.json"
+  },
+  "resume": {
+    "schemaVersion": "resume-schema@v1",
+    "profile": {
+      "name": "张国鑫",
+      "role": "现游戏开发工程师，前知识图谱 / NLP 算法工程师",
+      "bio": "目前关注 AI 游戏应用、系统架构、性能优化与程序化生成。",
+      "strengths": [
+        "擅长把复杂需求抽成可维护的系统边界，再落到可迭代的工程实现。",
+        "既能做游戏玩法与运行时系统，也能做编辑器工具、DSL 与框架抽象。",
+        "有 NLP / 知识图谱基础设施背景，习惯用长期维护视角看待技术设计。",
+        "游戏引擎：熟悉 Unity 游戏引擎中常见组件和工具的使用方法",
+        "编程语言：能够熟练使用 C#/C++、Python和 Shell 编程，了解常见的设计模式",
+        "沟通能力：主动推进项目进度，在工作中遇到问题能够及时有效的进行沟通",
+        "学习能力：学习能力强，能主动学习相关技术知识",
+        "工作态度：工作认真负责，能在基础工作上再多想一步",
+        "算法/数据结构：熟练掌握传统的算法和数据结构，熟悉常见 NLP 深度学习算法、模型、传统与文本相关的机器学习算法"
+      ],
+      "contacts": [
+        {
+          "label": "简历",
+          "href": "/resume"
+        },
+        {
+          "label": "GitHub",
+          "href": "https://github.com/zgx197",
+          "external": true
+        },
+        {
+          "label": "Steam",
+          "href": "https://steamcommunity.com/profiles/76561198340584094",
+          "external": true
+        },
+        {
+          "label": "Email",
+          "href": "mailto:guoxin_zhang@outlook.com"
+        }
+      ]
+    },
+    "resume": {
+      "headline": "现游戏开发工程师，前知识图谱 / NLP 算法工程师。目前关注 AI 游戏应用、系统架构、性能优化与程序化生成。",
+      "summaryPoints": [
+        "近年的工作重点分布在 Unity 游戏研发、编辑器工具链和运行时架构。",
+        "既能做玩法系统与运行时工程，也能做工具、DSL 和框架抽象。",
+        "知识图谱与 NLP 背景让我更关注抽象、验证和长期可维护性。",
+        "游戏引擎：熟悉 Unity 游戏引擎中常见组件和工具的使用方法",
+        "编程语言：能够熟练使用 C#/C++、Python和 Shell 编程，了解常见的设计模式",
+        "沟通能力：主动推进项目进度，在工作中遇到问题能够及时有效的进行沟通"
+      ],
+      "focusAreas": [
+        {
+          "title": "Unity 游戏开发",
+          "description": "关注玩法系统、运行时架构、程序化生成与性能优化。"
+        },
+        {
+          "title": "工具链与框架",
+          "description": "偏好把复杂问题抽成可维护的编辑器工具、DSL 与运行时系统。"
+        },
+        {
+          "title": "AI / NLP 背景",
+          "description": "有知识图谱、模型、数据工程和服务部署经验。"
+        },
+        {
+          "title": "方向 1",
+          "description": "游戏引擎：熟悉 Unity 游戏引擎中常见组件和工具的使用方法"
+        },
+        {
+          "title": "方向 2",
+          "description": "编程语言：能够熟练使用 C#/C++、Python和 Shell 编程，了解常见的设计模式"
+        },
+        {
+          "title": "方向 3",
+          "description": "沟通能力：主动推进项目进度，在工作中遇到问题能够及时有效的进行沟通"
+        }
+      ],
+      "profileFacts": [
+        {
+          "label": "技术能力",
+          "value": "游戏开发 / AI 游戏应用 / 系统架构 / 性能优化 / 程序化生成"
+        },
+        {
+          "label": "相关背景",
+          "value": "知识图谱 / NLP / 数据工程 / 服务部署"
+        },
+        {
+          "label": "擅长事项",
+          "value": "复杂系统拆解 / 数据驱动设计 / 工具链建设 / 工程落地"
+        },
+        {
+          "label": "联系方式",
+          "value": "guoxin_zhang@outlook.com"
+        },
+        {
+          "label": "求职意向",
+          "value": "U3D"
+        },
+        {
+          "label": "电话",
+          "value": "18646278970"
+        },
+        {
+          "label": "邮箱",
+          "value": "guoxin_zhang@outlook.com"
+        },
+        {
+          "label": "主页",
+          "value": "https://steamcommunity.com/profiles/76561198340584094"
+        },
+        {
+          "label": "主页",
+          "value": "https://github.com/zgx197"
+        }
+      ],
+      "experiences": [
+        {
+          "id": "北京畅聊天下科技有限公司-2025-07",
+          "company": "北京畅聊天下科技有限公司",
+          "role": "Unity开发工程师",
+          "period": "2025.07-至今",
+          "summary": "负责公司核心 Unity 编辑器平台与战斗基础设施研发，主导场景设计平台、场景蓝图框架、Framesync 技能编辑器与技能运行时等核心模块建设，推动工具链与运行时系统的平台化演进。",
+          "bullets": [
+            "主导 StageDesigner / SnapGridFlow 场景设计平台架构演进，统一场景身份、会话入口、模块装配与构建配置，支撑多场景类型在一致生命周期下运行。",
+            "设计并落地 SceneBlueprint 场景蓝图框架，打通 DSL 定义、可视化编辑、场景语义绑定、导出契约、运行时解释执行与调试回放链路。",
+            "主导 Framesync 技能逻辑编辑器建设，沉淀技能蓝图资产、时间轴编排、沙盒预览、导入导出与自动收口能力，提升技能内容生产闭环效率。",
+            "负责 Framesync 技能释放与执行系统架构，拆分释放控制层与技能执行层，统一多来源释放入口、状态推进、能力调度、伤害结算与表现联动链路。",
+            "持续推动 AI Agent 与大模型辅助研发工作流接入游戏工具链，围绕复杂系统分析、知识辅助与流程提效预留结构化能力入口。"
+          ],
+          "details": {
+            "refinedTitle": "详细补充",
+            "refined": [
+              "工作内容覆盖 Unity 编辑器平台与战斗基础设施两条主线，包括场景设计、场景蓝图、技能编辑工具链，以及确定性技能运行时主链路建设。",
+              "除核心系统研发外，也持续推动 AI Agent 与大模型辅助研发工作流在游戏工具链中的落地，围绕复杂系统分析、知识辅助和研发提效预留结构化接入能力。"
+            ],
+            "originalTitle": "简历原文",
+            "original": [
+              "工作内容：负责公司核心 Unity 编辑器平台与战斗基础设施研发，主导 StageDesigner、SnapGridFlow、SceneBlueprint、Framesync 技能逻辑编辑器、Framesync 技能释放与执行系统等核心模块建设，覆盖场景设计工具链、场景级蓝图框架、确定性技能编辑、技能运行时主链路及相关导入导出、调试验证和资产收口流程，持续推动内容生产工具与运行时系统的平台化、结构化演进。除核心系统研发外，持续推动 AI Agent 与大模型辅助研发工作流在游戏工具链中的落地，围绕复杂系统分析、知识辅助和研发提效预留结构化接入能力。"
+            ]
+          },
+          "projectSlugs": [
+            "framesync-skill-runtime",
+            "framesync-skill-editor",
+            "sceneblueprint-work",
+            "stage-designer"
+          ]
+        },
+        {
+          "id": "yaoxiang-2024-02",
+          "company": "遥响动漫设计（北京）有限公司",
+          "role": "U3D 游戏开发工程师",
+          "period": "2024.02 - 2025.06",
+          "summary": "负责 2D 俯视角沙盒修仙原型项目的核心系统与底层架构研发，覆盖基础框架、世界生成、玩法系统与性能优化。",
+          "bullets": [
+            "基于 GameFramework 做二次开发，并用 MVC 思路搭建核心数据流和基础框架。",
+            "从零实现 Hex Grid 世界生成、法宝策略背包、随机事件与社会关系等关键系统。",
+            "主导 protobuf-net 存档优化，并结合预加载、对象池、分帧执行和动态 LOD 提升运行时性能。",
+            "搭建混合配置方案与上下文输入管理框架，支撑策划迭代与复杂交互场景。",
+            "设计人口热力图、首都定位与国家边界扩张等文明演化模拟逻辑。"
+          ],
+          "details": {
+            "refinedTitle": "详细补充",
+            "refined": [
+              "负责基础框架、数据驱动流程、配置方案、世界生成、法宝策略背包、随机事件、社会关系与存档优化。",
+              "项目处于早期原型验证阶段，已完成基础框架、数据驱动流程和多系统联动骨架搭建。",
+              "已实现配置方案、世界生成、法宝策略背包、随机事件、社会关系与存档优化等核心模块。"
+            ],
+            "originalTitle": "简历原文",
+            "original": [
+              "项目设计深受《环世界》启发，其核心特色是通过程序化生成的开放世界、深度模拟的角色行为与社会关系，以及由 AI 驱动的动态故事系统，为玩家创造独一无二的修仙宗门经营体验。"
+            ]
+          },
+          "projectSlugs": [
+            "xiuxian-game"
+          ]
+        },
+        {
+          "id": "北京百度网讯科技有限公司-2020-07",
+          "company": "北京百度网讯科技有限公司",
+          "role": "算法工程师",
+          "period": "2020.07-2023.04",
+          "summary": "围绕中文短文本理解建设知识底座、知识标注模型、数据工程和服务部署能力，支撑搜索、广告、AIGC 等业务方向。",
+          "bullets": [
+            "建设 TermTree 知识底座并沉淀百万级知识节点，支撑多项在线、离线知识理解任务。",
+            "参与多任务短文本知识标注模型与标签体系设计，服务搜索、广告、AIGC 等场景。",
+            "从 0 到 1 构建训练样本、测试集和评测流程，降低模型升级风险。",
+            "研发 term-linking 和知识挖掘策略，提升文本到知识节点映射的稳定性与可解释性。",
+            "负责 GPU 和 CPU 集群部署，形成面向多业务线的稳定服务支撑能力。"
+          ],
+          "details": {
+            "refinedTitle": "详细补充",
+            "refined": [
+              "工作内容覆盖知识库、模型、训练数据、评测和服务部署等环节，面向中文短文本理解能力建设。",
+              "负责 TermTree 知识底座、标签体系与模型训练、term-linking 策略、评测体系和服务落地，覆盖从知识生产到业务使用的完整链路。"
+            ],
+            "originalTitle": "简历原文",
+            "original": [
+              "短文本知识标注工具集研发：项目从词汇理解和句子理解两个层面探索中文通用知识表征与应用，通过构建中文全词类知识库并将短文本与通用词汇知识体系相关联，提升模型对中文语句的概念、实体、意图和主题理解能力。"
+            ]
+          },
+          "projectSlugs": [
+            "knowledge-graph"
+          ]
+        },
+        {
+          "id": "北京百度网讯科技有限公司-2018-09",
+          "company": "北京百度网讯科技有限公司",
+          "role": "算法工程师",
+          "period": "2018.09-2020.07",
+          "summary": "负责两千万级百科词条入库与知识库扩充，聚焦流程设计、分类关联策略和天级数据更新链路建设。",
+          "bullets": [
+            "设计从预处理到知识库更新的完整计算链路，明确各阶段输入输出与迭代边界。",
+            "结合分类模型、消歧重召回与定义句特征细化，提升词条类别判定与知识节点映射质量。",
+            "搭建 Airflow 天级更新流程，并将结果推送到业务方数据库，支撑百科结构化数据能力。"
+          ],
+          "details": {
+            "refinedTitle": "详细补充",
+            "refined": [
+              "工作内容聚焦知识库扩充基础设施建设，将海量百科词条转换为可进入知识库的实体与概念词。",
+              "负责流程设计、分类与关联策略，以及例行数据生产链路搭建，支撑大规模知识入库与日常更新。"
+            ],
+            "originalTitle": "简历原文",
+            "original": [
+              "百度百科词条与知识库关联项目：本项目是将两千万百科词条收录入知识库中以扩充知识库里的实体和概念词数量，主要通过多种分类策略对输入的百科页面进行分类细化，得到一个精准的词条类别，进而将该词条与知识库中的概念节点相关联。"
+            ]
+          },
+          "projectSlugs": [
+            "baike-knowledge-base"
+          ]
+        }
+      ],
+      "skillGroups": [
+        {
+          "title": "引擎与语言",
+          "items": [
+            "Unity",
+            "C#",
+            "C++",
+            "Python",
+            "Shell"
+          ]
+        },
+        {
+          "title": "游戏系统",
+          "items": [
+            "GameFramework",
+            "数据驱动",
+            "程序化生成",
+            "关系图系统",
+            "Unity Input System"
+          ]
+        },
+        {
+          "title": "工具与框架",
+          "items": [
+            "Editor Tooling",
+            "Node Graph",
+            "DSL",
+            "Code Generation",
+            "Runtime Interpreter"
+          ]
+        },
+        {
+          "title": "AI / NLP",
+          "items": [
+            "知识图谱",
+            "Prompt Learning",
+            "序列标注",
+            "数据工程",
+            "服务部署"
+          ]
+        },
+        {
+          "title": "游戏引擎",
+          "items": [
+            "熟悉 Unity 游戏引擎中常见组件",
+            "工具的使用方法"
+          ]
+        },
+        {
+          "title": "编程语言",
+          "items": [
+            "能够熟练使用 C#",
+            "C++",
+            "Python",
+            "Shell 编程",
+            "了解常见的设计模式"
+          ]
+        },
+        {
+          "title": "沟通能力",
+          "items": [
+            "主动推进项目进度",
+            "在工作中遇到问题能够及时有效的进行沟通"
+          ]
+        },
+        {
+          "title": "学习能力",
+          "items": [
+            "学习能力强",
+            "能主动学习相关技术知识"
+          ]
+        },
+        {
+          "title": "工作态度",
+          "items": [
+            "工作认真负责",
+            "能在基础工作上再多想一步"
+          ]
+        },
+        {
+          "title": "算法/数据结构",
+          "items": [
+            "熟练掌握传统的算法",
+            "数据结构",
+            "熟悉常见 NLP 深度学习算法",
+            "模型",
+            "传统与文本相关的机器学习算法"
+          ]
+        },
+        {
+          "title": "待整理技能",
+          "items": [
+            "请根据原始简历补充技能分组"
+          ]
+        }
+      ],
+      "honors": [
+        "2022年 一级专利发明人：个人第一发明人专利 2 篇，其中 1 篇为公司重要专利，获公司内部一级专利发明人称号",
+        "2022年 部门项目奖：短文本知识标注内部服务上线后辐射收入亿级别，获部门项目奖",
+        "2020年 百度新人零度突破之星",
+        "2018年 ICPC 全国大学生程序设计竞赛宁夏邀请赛银牌",
+        "2018年 蓝桥杯第十届计算机程序设计竞赛一等奖",
+        "2017年 CCPC 第十一届东北地区大学生程序设计竞赛三等奖",
+        "2017年 蓝桥杯第九届计算机程序设计竞赛二等奖",
+        "2016年 蓝桥杯第八届计算机程序设计竞赛二等奖",
+        "2015年 CCPC 黑龙江省大学生程序设计竞赛三等奖"
+      ],
+      "honorExtras": [
+        {
+          "slug": "patents",
+          "title": "一级专利发明人相关资料",
+          "summary": "收录简历中提到的部分专利编号与名称，可作为专利成果补充说明。",
+          "images": [
+            {
+              "title": "百度 零度突破",
+              "src": "/honor-assets/patents/images/百度-零度突破.jpg",
+              "alt": "百度 零度突破"
+            },
+            {
+              "title": "ACM 2018 获奖照片",
+              "src": "/honor-assets/patents/images/ACM-2018-获奖照片.jpg",
+              "alt": "ACM 2018 获奖照片"
+            },
+            {
+              "title": "ACM 2018 银奖",
+              "src": "/honor-assets/patents/images/ACM-2018-银奖.jpg",
+              "alt": "ACM 2018 银奖"
+            },
+            {
+              "title": "ACM 2018 银奖奖牌",
+              "src": "/honor-assets/patents/images/ACM-2018-银奖奖牌.jpg",
+              "alt": "ACM 2018 银奖奖牌"
+            }
+          ],
+          "references": [
+            {
+              "label": "专利",
+              "value": "序列标注模型的训练方法、装置、电子设备和存储介质  CN113220836B"
+            },
+            {
+              "label": "专利",
+              "value": "噪音样本的识别方法、装置、电子设备以及存储介质  CN113887627B"
+            },
+            {
+              "label": "专利",
+              "value": "文本分类模型的训练方法、文本分类方法及装置  CN115934937B"
+            },
+            {
+              "label": "专利",
+              "value": "信息抽取方法、装置、电子设备以及存储介质  CN116108857B"
+            },
+            {
+              "label": "专利",
+              "value": "搜索词权重的确定方法、装置及电子设备  CN114398469A"
+            },
+            {
+              "label": "专利",
+              "value": "数据处理方法、装置、设备以及存储介质  CN114860872B"
+            },
+            {
+              "label": "专利",
+              "value": "文本信息处理方法、装置、电子设备以及存储介质  CN113220835B"
+            },
+            {
+              "label": "专利",
+              "value": "分类模型训练、语义分类方法、装置、设备和介质  CN114969326B"
+            },
+            {
+              "label": "专利",
+              "value": "实体关系抽取方法、装置、电子设备和存储介质  CN113221566B"
+            },
+            {
+              "label": "专利",
+              "value": "文本分类方法、装置以及设备  CN115982352A"
+            },
+            {
+              "label": "专利",
+              "value": "文本标注方法、装置及电子设备  CN114416976A"
+            },
+            {
+              "label": "说明",
+              "value": "等专利..."
+            }
+          ]
+        }
+      ],
+      "education": {
+        "school": "佳木斯大学",
+        "degree": "本科 · 计算机科学与技术",
+        "period": "2015 - 2020",
+        "details": [
+          "ACM 集训队队员，负责训练与算法及数据结构知识讲解。",
+          "2017 黑龙江省 NOIP 夏令营和冬令营学生助教。"
+        ]
+      }
+    },
+    "projects": [
+      {
+        "slug": "framesync-skill-runtime",
+        "title": "Framesync 技能释放与执行系统",
+        "category": "featured",
+        "meta": [
+          "北京畅聊天下科技有限公司",
+          "战斗基础设施",
+          "主导建设",
+          "2025.07-至今"
+        ],
+        "description": "主导设计并实现确定性帧同步战斗场景下的技能释放与执行系统，提升战斗系统一致性和扩展效率。",
+        "tags": [
+          "Unity",
+          "Framesync",
+          "Gameplay",
+          "战斗系统",
+          "状态机",
+          "Damage Pipeline",
+          "结构化资产"
+        ],
+        "eyebrow": "Featured Project / Combat Runtime",
+        "subtitle": "统一确定性帧同步战斗场景下的技能输入、状态推进、能力调度、伤害结算与表现反馈链路。",
+        "media": {
+          "gallery": [],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目结构",
+            "items": [
+              {
+                "value": "双层架构",
+                "label": "释放 / 执行"
+              },
+              {
+                "value": "多入口",
+                "label": "输入来源统一"
+              },
+              {
+                "value": "按帧推进",
+                "label": "确定性执行"
+              },
+              {
+                "value": "结构化资产",
+                "label": "配置演进方向"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "Framesync 技能释放与执行系统面向确定性帧同步战斗场景，统一承接技能释放、实例创建、按帧能力执行、命中检测、伤害结算和表现联动流程，是战斗运行时的核心主链路之一。",
+              "我在这个项目中重点解决的是系统边界和扩展问题：把释放控制和技能执行拆开，把多来源入口统一起来，把能力执行器模块化，并让伤害结算、状态推进和 Timeline 表现之间建立稳定接口。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "运行时边界设计",
+            "items": [
+              {
+                "title": "释放控制层 / 技能执行层",
+                "description": "将运行链路拆成释放控制层和技能执行层，前者负责冷却、公 CD、同组技能、释放条件和触发校验，后者负责实例创建、状态推进和能力调度，建立清晰稳定的系统边界。"
+              },
+              {
+                "title": "多来源释放入口统一",
+                "description": "统一玩家输入、AI、Buff、状态技、机关交互及子技能继续施放等入口，避免技能逻辑散落在多个模块中各自演化，提高战斗系统一致性。"
+              },
+              {
+                "title": "技能实例状态机",
+                "description": "设计技能实例状态机与能力实例运行模型，支持启动、阻塞、依赖、打断、中断、取消和链式触发等复杂控制关系。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "能力执行与战斗子系统",
+            "items": [
+              {
+                "title": "能力执行器模块化",
+                "description": "将攻击、冲锋、瞬移、子弹发射、加 Buff、信号触发及机关类能力拆成独立执行器，通过统一接口接入技能执行系统，避免主循环持续膨胀。"
+              },
+              {
+                "title": "子弹与持续性能力",
+                "description": "完成子弹发射、弹道推进、碰撞检测、命中判定、穿透统计和销毁流程设计，同时覆盖冲锋、持续攻击等持续性能力的生命周期与频率控制。"
+              },
+              {
+                "title": "结构化技能资产",
+                "description": "推动技能配置从分散表结构向结构化资产模型演进，使技能数据形成“基础元信息 + 逻辑能力分组 + 表现能力分组 + 查询索引”的组织方式。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "伤害结算与系统联动",
+            "items": [
+              {
+                "title": "统一 DamageInfo 链路",
+                "description": "围绕 DamageInfo 串联属性计算、血量变化、死亡判定及客户端反馈事件，让技能逻辑层与战斗反馈层保持一致。"
+              },
+              {
+                "title": "与 Timeline 表现联动",
+                "description": "将伤害结算链路与 Timeline 表现系统打通，在保持逻辑确定性的前提下完成视觉反馈联动。"
+              },
+              {
+                "title": "编辑器与 AI 预留能力",
+                "description": "结构化资产模型为后续技能编辑器接入、自动化校验和 AI 辅助分析提供数据基础，并降低运行时对临时配置的依赖。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点工作",
+            "items": [
+              "拆分技能系统为释放控制层和技能执行层，建立清晰运行边界。",
+              "统一玩家输入、AI、Buff、机关交互和子技能继续施放等多来源释放入口。",
+              "设计技能实例状态机、能力执行器和子弹生命周期等核心运行模型。",
+              "建立以 DamageInfo 为核心的统一伤害结算链路，并联动 Timeline 表现系统。",
+              "推动技能配置向结构化资产演进，为编辑器接入和 AI 分析预留基础。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "相关项目：Framesync 技能逻辑编辑器",
+                "href": "/projects/framesync-skill-editor"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "framesync-skill-editor",
+        "title": "Framesync 技能逻辑编辑器",
+        "category": "featured",
+        "meta": [
+          "北京畅聊天下科技有限公司",
+          "技能制作工具链",
+          "主导建设",
+          "2025.07-至今"
+        ],
+        "description": "主导开发确定性帧同步技能系统的可视化编辑与预览平台，实现技能蓝图配置与时间轴编排的系统化闭环。",
+        "tags": [
+          "Unity",
+          "Framesync",
+          "技能编辑器",
+          "Timeline",
+          "确定性沙盒",
+          "Editor Tooling",
+          "自动收口"
+        ],
+        "eyebrow": "Featured Project / Skill Tooling",
+        "subtitle": "构建具备双层结构、时间治理与沙盒验证能力的技能编辑工作台，支撑技能蓝图配置与时间轴编排。",
+        "media": {
+          "manifestPath": "/project-assets/work/framesync-skill-editor/manifest.json",
+          "featured": {
+            "kind": "image",
+            "src": "/project-assets/work/framesync-skill-editor/images/01-整体面板.png",
+            "alt": "技能编辑器总览",
+            "title": "技能编辑器总览",
+            "description": "展示编辑器主界面、时间轴与核心操作区。"
+          },
+          "gallery": [
+            {
+              "kind": "image",
+              "src": "/project-assets/work/framesync-skill-editor/images/02-轨道展开.png",
+              "alt": "时间轴轨道视图",
+              "title": "时间轴轨道视图",
+              "description": "展示技能轨道展开后的编排细节。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/framesync-skill-editor/images/03-侧面面板.png",
+              "alt": "参数配置面板",
+              "title": "参数配置面板",
+              "description": "展示节点或技能对象的参数编辑区域。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/framesync-skill-editor/images/04-相关设置.png",
+              "alt": "编辑器配置面板",
+              "title": "编辑器配置面板",
+              "description": "展示技能编辑相关配置与辅助选项。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/framesync-skill-editor/images/05-资源预览.png",
+              "alt": "资源预览视图",
+              "title": "资源预览视图",
+              "description": "展示技能资源或表现内容的预览区域。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/framesync-skill-editor/images/06-DB面板.png",
+              "alt": "DB 数据面板",
+              "title": "DB 数据面板",
+              "description": "展示编辑器中的数据管理或数据库视图。"
+            }
+          ],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目结构",
+            "items": [
+              {
+                "value": "双层结构",
+                "label": "蓝图资产 / 时间轴"
+              },
+              {
+                "value": "确定性沙盒",
+                "label": "运行验证"
+              },
+              {
+                "value": "统一时间驱动",
+                "label": "预览一致性"
+              },
+              {
+                "value": "自动收口",
+                "label": "资产治理"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "Framesync 技能逻辑编辑器面向确定性帧同步技能系统，承接技能蓝图配置、时间轴编排、预览验证、沙盒接入和导出收口流程，是技能内容生产闭环中的核心工具。",
+              "我在这个项目里重点解决三类问题：拆分技能基础信息与时序表达结构，建立稳定的编辑器工作流，以及在贴近真实运行时的环境里完成编辑结果验证。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "工作台与编辑结构",
+            "items": [
+              {
+                "title": "技能蓝图资产 + 时间轴双层结构",
+                "description": "将技能编辑拆为“技能蓝图资产”和“时间轴可视化编排”双层结构，使基础信息、预览配置和能力调度稳定沉淀，而具体时序表达通过统一 Timeline 体系完成。"
+              },
+              {
+                "title": "统一编排入口",
+                "description": "把技能逻辑、表现、阶段信息以及部分机关行为纳入同一编排入口，减少逻辑配置与表现时序割裂问题。"
+              },
+              {
+                "title": "工作台机制",
+                "description": "围绕蓝图选择、进入编辑、预览场景初始化、Timeline 锁定、角色恢复和退出回写等关键流程建立稳定工作台机制，让技能编辑从依赖人工步骤转变为系统化闭环。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "预览验证与时间治理",
+            "items": [
+              {
+                "title": "确定性沙盒接入",
+                "description": "直接接入确定性沙盒，支持播放、暂停、逐帧步进、回退、快照和角色技能释放测试，使编辑结果可在贴近真实运行环境的条件下验证。"
+              },
+              {
+                "title": "统一权威时间驱动",
+                "description": "协调 Timeline、碰撞预览、角色预览和沙盒回放之间的时间推进与状态同步，解决多模块各自维护时间逻辑导致的预览不一致问题。"
+              },
+              {
+                "title": "可扩展轨道体系",
+                "description": "设计可扩展技能轨道体系与统一参数编辑能力，让新能力通过轨道描述进入创建、导入、提取和导出流程，并在统一编辑入口下完成配置维护。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "资产收口与兼容演进",
+            "items": [
+              {
+                "title": "旧配置迁移",
+                "description": "打通旧配置反向导入、当前蓝图导出回写、资产索引、自动标签、增量监听和自动收口流程，为新旧资产兼容和后续迁移提供基础。"
+              },
+              {
+                "title": "与运行时系统对齐",
+                "description": "编辑器结构、轨道参数和导出结果都围绕 Framesync 技能运行时做对齐，避免编辑器成为脱离运行时的独立玩具。"
+              },
+              {
+                "title": "后续自动化空间",
+                "description": "双层结构、结构化资产和一致的时间推进模型，为自动校验、批量分析和 AI 辅助理解技能蓝图预留了较好的工程入口。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点工作",
+            "items": [
+              "主导技能编辑器整体架构设计，沉淀技能蓝图资产与时间轴双层结构。",
+              "建立稳定工作台机制，覆盖进入编辑、预览初始化、锁定、恢复和退出回写流程。",
+              "接入确定性沙盒，实现技能编辑结果的播放、步进、回退和快照验证。",
+              "建立统一权威时间驱动，解决 Timeline、碰撞预览、角色预览和沙盒回放不一致问题。",
+              "打通旧配置迁移、导出回写、资产索引与自动收口链路。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "相关项目：Framesync 技能释放与执行系统",
+                "href": "/projects/framesync-skill-runtime"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "sceneblueprint-work",
+        "title": "SceneBlueprint 场景蓝图系统",
+        "category": "featured",
+        "meta": [
+          "北京畅聊天下科技有限公司",
+          "Unity 编辑器平台",
+          "核心建设",
+          "2025.07-至今"
+        ],
+        "description": "主导公司内 SceneBlueprint 场景蓝图系统建设，打通蓝图定义、可视化编辑、场景语义绑定、导出契约与运行时执行链路。",
+        "tags": [
+          "Unity",
+          "SceneBlueprint",
+          "Editor Tooling",
+          "DSL",
+          "Runtime Interpreter",
+          "场景语义绑定",
+          "调试回放"
+        ],
+        "eyebrow": "Featured Project / Editor Platform",
+        "subtitle": "统一蓝图定义、编辑工作台、场景语义绑定、导出契约与运行时执行链路，形成可接入业务生产的场景蓝图系统。",
+        "media": {
+          "manifestPath": "/project-assets/work/sceneblueprint-work/manifest.json",
+          "featured": {
+            "kind": "image",
+            "src": "/project-assets/work/sceneblueprint-work/images/01-整体预览.png",
+            "alt": "场景蓝图工作台总览",
+            "title": "场景蓝图工作台总览",
+            "description": "展示公司内 SceneBlueprint 工作流的整体界面。"
+          },
+          "gallery": [
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/02-阶段预览.png",
+              "alt": "阶段节点总览",
+              "title": "阶段节点总览",
+              "description": "展示阶段结构和节点关系的可视化视图。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/03-AI助手.png",
+              "alt": "AI 助手联动",
+              "title": "AI 助手联动",
+              "description": "展示 AI 辅助分析或生成能力在工具中的接入方式。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/04-场景Marker.png",
+              "alt": "场景 Marker 配置",
+              "title": "场景 Marker 配置",
+              "description": "展示场景标记点或语义锚点配置界面。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/05-Debug工具.png",
+              "alt": "调试工具面板",
+              "title": "调试工具面板",
+              "description": "展示蓝图工具中的调试与诊断能力。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/06-运行时DebugView.png",
+              "alt": "运行时调试视图",
+              "title": "运行时调试视图",
+              "description": "展示运行时状态观察与调试视图。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/07-个人设置.png",
+              "alt": "个人设置面板",
+              "title": "个人设置面板",
+              "description": "展示个人偏好与本地开发配置。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/sceneblueprint-work/images/08-项目设置.png",
+              "alt": "项目设置面板",
+              "title": "项目设置面板",
+              "description": "展示项目级配置、规则与导出相关设置。"
+            }
+          ],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目结构",
+            "items": [
+              {
+                "value": "双子系统",
+                "label": "编辑器 / 运行时"
+              },
+              {
+                "value": "DSL",
+                "label": "定义入口"
+              },
+              {
+                "value": "契约导出",
+                "label": "数据边界"
+              },
+              {
+                "value": "调试回放",
+                "label": "可观察性"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "SceneBlueprint 公司内项目版定位为场景级蓝图系统，用于统一承接蓝图制作、导出契约、运行时解释执行和调试回放链路，是内容生产工具链中的核心基础设施。",
+              "我在这个项目里持续收敛蓝图定义、编辑工作台、场景绑定、导出契约、运行时执行和调试回放等系统边界，推动其稳定接入真实业务生产链路。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "定义与编辑工作台",
+            "items": [
+              {
+                "title": "DSL 与代码生成体系",
+                "description": "通过 `.sbdef`、Importer 与生成链路统一 Action、Marker、Annotation、Signal 等定义来源，降低手写注册与多端不一致问题。"
+              },
+              {
+                "title": "Window + Session + Services",
+                "description": "将编辑器拆分为可扩展工作台结构，统一承接图编辑、分析、预览、导出、子图、Inspector 和状态管理，避免功能继续堆到单一大窗口。"
+              },
+              {
+                "title": "结构化作者工作流",
+                "description": "围绕定义、编辑、分析、预览和导出建立清晰 authoring 流程，统一蓝图制作相关脚本、工具和平台能力。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "场景绑定与运行时链路",
+            "items": [
+              {
+                "title": "场景语义绑定",
+                "description": "建立 Marker、Annotation、Spatial 等语义绑定机制，并补充绑定收集、绑定恢复和场景快照恢复能力，提升蓝图与真实场景对象接线的稳定性。"
+              },
+              {
+                "title": "稳定导出契约",
+                "description": "将编辑器图结构统一导出为稳定契约，明确工作资产、导出数据和运行时状态之间的边界，让运行链路更容易维护和验证。"
+              },
+              {
+                "title": "解释执行结构",
+                "description": "设计 Loader + Runner + Systems 解释执行结构，承接控制流、信号、黑板和组合条件等蓝图基础语义，使运行时具备稳定分层的执行框架。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "调试与后续扩展",
+            "items": [
+              {
+                "title": "快照、回放与测试窗口",
+                "description": "补充状态快照、回放与测试窗口能力，让蓝图执行路径和状态演化可观察、可复盘，降低复杂系统维护成本。"
+              },
+              {
+                "title": "知识辅助接入",
+                "description": "结合蓝图语义定义、节点关系和运行时状态，持续探索 AI Agent 与大模型在蓝图理解、上下文检索、节点语义解释和复杂流程分析中的落地方式。"
+              },
+              {
+                "title": "业务版工程化收口",
+                "description": "公司内项目版本覆盖工具链协作、真实场景接入和后续平台化演进空间。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点工作",
+            "items": [
+              "围绕蓝图定义、编辑工作台、场景绑定、导出契约和运行时执行建立完整系统边界。",
+              "设计 DSL 与代码生成体系，统一 Action、Marker、Annotation、Signal 等定义来源。",
+              "将编辑器拆成 Window + Session + Services 工作台结构，治理持续膨胀的问题。",
+              "建立场景语义绑定、快照恢复和调试回放能力，提升蓝图接线与运行稳定性。",
+              "围绕蓝图语义和运行时状态探索 AI 辅助理解与复杂流程分析入口。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "相关开源项目：SceneBlueprint 2.0",
+                "href": "/projects/sceneblueprint"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "stage-designer",
+        "title": "StageDesigner / SnapGridFlow 场景设计平台",
+        "category": "featured",
+        "meta": [
+          "北京畅聊天下科技有限公司",
+          "场景设计平台",
+          "主导建设",
+          "2025.07-至今"
+        ],
+        "description": "主导 Unity 场景设计平台 StageDesigner 架构设计，实现多场景类型统一生命周期与接线方式，提升场景编辑效率与稳定性。",
+        "tags": [
+          "Unity",
+          "StageDesigner",
+          "SnapGridFlow",
+          "Editor Tooling",
+          "模块化关卡",
+          "BuildProfile",
+          "AI 辅助"
+        ],
+        "eyebrow": "Featured Project / Stage Toolchain",
+        "subtitle": "统一多种场景编辑、布局构建和导出同步流程，支撑多场景类型在同一数据模型下运行。",
+        "media": {
+          "manifestPath": "/project-assets/work/stage-designer/manifest.json",
+          "featured": {
+            "kind": "image",
+            "src": "/project-assets/work/stage-designer/images/01-入口截图.png",
+            "alt": "场景设计入口",
+            "title": "场景设计入口",
+            "description": "展示 StageDesigner / SnapGridFlow 的主入口界面。"
+          },
+          "gallery": [
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/02-Cell编辑.png",
+              "alt": "Cell 编辑视图",
+              "title": "Cell 编辑视图",
+              "description": "展示关卡单元格编辑与局部布局操作。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/03-预设模块编辑.png",
+              "alt": "预设模块编辑",
+              "title": "预设模块编辑",
+              "description": "展示预设模块的编辑与结构组织。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/04-预设模块导入.png",
+              "alt": "预设模块导入",
+              "title": "预设模块导入",
+              "description": "展示模块资源导入与接入流程。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/05-功能展示1.png",
+              "alt": "功能联动演示一",
+              "title": "功能联动演示一",
+              "description": "展示场景设计工具中的功能联动效果。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/06-功能展示2.png",
+              "alt": "功能联动演示二",
+              "title": "功能联动演示二",
+              "description": "展示场景设计工具中的功能联动效果。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/07-功能展示3.png",
+              "alt": "功能联动演示三",
+              "title": "功能联动演示三",
+              "description": "展示场景设计工具中的功能联动效果。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/08-功能展示4.png",
+              "alt": "功能联动演示四",
+              "title": "功能联动演示四",
+              "description": "展示场景设计工具中的功能联动效果。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/09-寻路烘焙预览.png",
+              "alt": "寻路烘焙预览",
+              "title": "寻路烘焙预览",
+              "description": "展示寻路烘焙结果与导航区域预览。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/10-同步和导出管道.png",
+              "alt": "同步导出管道",
+              "title": "同步导出管道",
+              "description": "展示内容同步、导出与下游消费流程。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/11-git快捷操作.png",
+              "alt": "Git 操作面板",
+              "title": "Git 操作面板",
+              "description": "展示项目内常用 Git 操作集成入口。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/12-项目设置.png",
+              "alt": "项目设置面板",
+              "title": "项目设置面板",
+              "description": "展示项目级构建与流程相关配置。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/14-个人设置.png",
+              "alt": "个人设置面板",
+              "title": "个人设置面板",
+              "description": "展示本地偏好与个人开发配置。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/15-布局模块预处理.png",
+              "alt": "布局模块预处理",
+              "title": "布局模块预处理",
+              "description": "展示布局模块在生成前的预处理流程。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/16-布局数据生成器.png",
+              "alt": "布局数据生成器",
+              "title": "布局数据生成器",
+              "description": "展示布局数据生成与参数配置界面。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/17-手动布局设置窗口.png",
+              "alt": "手动布局设置",
+              "title": "手动布局设置",
+              "description": "展示手动布局调节与参数设置窗口。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/18-布局效果.png",
+              "alt": "布局效果预览",
+              "title": "布局效果预览",
+              "description": "展示当前布局生成后的场景效果。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/work/stage-designer/images/19-替换布局效果.png",
+              "alt": "替换布局效果",
+              "title": "替换布局效果",
+              "description": "展示替换方案后的布局效果对比。"
+            }
+          ],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目结构",
+            "items": [
+              {
+                "value": "统一入口",
+                "label": "多场景类型承接"
+              },
+              {
+                "value": "Cell / SGF",
+                "label": "核心编辑模型"
+              },
+              {
+                "value": "BuildProfile",
+                "label": "构建配置层"
+              },
+              {
+                "value": "AI 预留",
+                "label": "后续增强方向"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "StageDesigner 是一套面向多场景类型的 Unity 场景设计平台，通过统一入口承接多类场景编辑流程；其中 SnapGridFlow 手动布局工具链承担模块化关卡的手工拓扑布局、校验、模块匹配和构建调优任务。",
+              "我在这个项目里重点做的是平台化收敛：让不同场景类型在一致生命周期和接线方式下运行，让手工布局、自动布局和后续构建进入统一数据模型，同时为 AI 辅助场景制作预留结构化入口。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "平台化框架",
+            "items": [
+              {
+                "title": "统一场景身份模型",
+                "description": "建立统一场景身份模型、会话入口和模块装配机制，使不同场景类型能够在一致的生命周期与接线方式下运行，推动工具从单点关卡编辑器演进为通用场景设计平台。"
+              },
+              {
+                "title": "模式系统与交互状态机",
+                "description": "构建模式系统、工具关系矩阵与交互状态机，治理复杂 SceneView 编辑行为、多工具切换和状态冲突问题，并打通导出、同步、命名策略与资产路由流程。"
+              },
+              {
+                "title": "多源内容接入",
+                "description": "支持基于 Cell 的场景构建、区域可视化、多源外部数据导入、美术模板场景接线及相关工具链协同，让工具真正进入内容生产主流程。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "SnapGridFlow 手工布局工具链",
+            "items": [
+              {
+                "title": "中间层布局数据模型",
+                "description": "将手工布局抽象为 TileShape、旋转、方向码和功能标签组成的中间层数据，让布局编辑与具体美术模块资源解耦，并建立统一方向码与拓扑建模体系。"
+              },
+              {
+                "title": "BuildProfile 构建配置层",
+                "description": "设计 BuildProfile 构建配置层与模块匹配缓存机制，支持节点级模块替换、主题、种子、确定性随机选择和单节点增量重建，在保证自动化能力的同时支持设计师精细化调优。"
+              },
+              {
+                "title": "统一构建主链路",
+                "description": "补充导出前连接冲突校验与模块覆盖率检查，并将手工布局正式导入既有构建主链路，使手工布局、自动布局和后续场景构建在统一数据模型下协同工作。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "工程协同与后续扩展",
+            "items": [
+              {
+                "title": "导出、同步与资产路由",
+                "description": "围绕导出、同步、命名策略和资产路由建立稳定工程流程，推动编辑器结果进入生产流水线。"
+              },
+              {
+                "title": "工具链协同",
+                "description": "与项目中的场景搭建、模板接线、寻路烘焙等环节做结构化对接，提升设计侧与工程侧之间的协作效率。"
+              },
+              {
+                "title": "AI 辅助预留",
+                "description": "在场景设计平台建设过程中持续探索 AI 与内容生产工具链的结合，围绕复杂场景结构理解、编辑知识辅助和工作流优化预留结构化接入点。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点工作",
+            "items": [
+              "主导 StageDesigner 平台架构设计，统一场景身份模型、会话入口和模块装配机制。",
+              "构建模式系统、工具关系矩阵与交互状态机，治理复杂编辑行为和状态冲突。",
+              "把 SnapGridFlow 手工布局抽象为中间层数据模型，解耦布局编辑和美术模块资源。",
+              "设计 BuildProfile 与模块匹配缓存机制，兼顾自动化构建与设计师精细调优。",
+              "围绕场景结构理解、知识辅助和工作流优化预留 AI 接入能力。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "相关项目：SceneBlueprint 场景蓝图系统",
+                "href": "/projects/sceneblueprint-work"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "xiuxian-game",
+        "title": "2D 沙盒修仙模拟游戏",
+        "category": "featured",
+        "meta": [
+          "遥响动漫设计（北京）有限公司",
+          "U3D 游戏开发工程师",
+          "核心开发",
+          "4人团队",
+          "2024.02-2025.06"
+        ],
+        "description": "受《环世界》启发的 2D 沙盒修仙原型项目，负责基础框架、Hex Grid 世界生成、玩法系统联动与性能优化。",
+        "tags": [
+          "Unity",
+          "GameFramework",
+          "程序化生成",
+          "Hex Grid",
+          "社会关系图",
+          "随机事件",
+          "策略背包",
+          "protobuf-net",
+          "性能优化"
+        ],
+        "eyebrow": "Featured Project / Game Systems",
+        "subtitle": "负责 GameFramework 二次开发、MVC 数据流、Hex Grid 世界生成、法宝策略背包、社会关系与随机事件系统，以及存档优化。",
+        "media": {
+          "gallery": [],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目侧重点",
+            "items": [
+              {
+                "value": "4人",
+                "label": "核心团队"
+              },
+              {
+                "value": "60%+",
+                "label": "存档体积压缩"
+              },
+              {
+                "value": "数倍",
+                "label": "存档读写提升"
+              },
+              {
+                "value": "Hex Grid",
+                "label": "世界生成底座"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "这是一个 2D 俯视角沙盒修仙模拟原型项目，方向上受到《环世界》启发，目标是把程序化开放世界、角色社会关系和动态事件系统组合成可持续演化的宗门经营体验。离职前项目仍处于早期开发阶段，各项内容主要完成了基础骨架与核心系统验证。",
+              "我在项目中主要负责基础框架、数据驱动流程、配置方案、程序化世界生成、法宝策略背包、随机事件、社会关系系统，以及存档和运行时性能优化。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "基础架构与数据流",
+            "items": [
+              {
+                "title": "GameFramework 二次开发",
+                "description": "在对比多个常见框架后，选择基于成熟的 GameFramework 做二次开发，充分利用其模块化、事件驱动与资源管理能力，并按项目需求定制核心组件，加快原型推进速度。"
+              },
+              {
+                "title": "MVC 数据驱动流程",
+                "description": "用 MVC 思路拆分核心数据、业务逻辑和表现层，构建清晰数据流，提升复杂模拟系统的可扩展性、可维护性与玩法迭代效率。"
+              },
+              {
+                "title": "混合配置方案",
+                "description": "高频表格数据走 Excel + EPPlus 工具链，复杂结构模板走 ScriptableObject，可变对话流和事件内容走 JSON，在表达力、可视化与解析效率之间做平衡。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "核心玩法与模拟系统",
+            "items": [
+              {
+                "title": "程序化世界生成",
+                "description": "从零构建 Hex Grid 多通道生成管线，结合多层 Perlin 噪声、BFS 河流生成、海拔温湿度计算与生物群落分配，并在上层继续做人口热力图、首都定位和国家边界扩张模拟。"
+              },
+              {
+                "title": "法宝策略背包",
+                "description": "参考《背包乱斗》设计二维法宝布局系统，让不同形状法宝在有限空间内通过旋转和组合触发元素联动效果，把库存管理转成核心策略构筑玩法。"
+              },
+              {
+                "title": "随机事件与社会关系",
+                "description": "构建 Excel 驱动的随机事件系统和基于图的社会关系系统，让角色关系变化、AI 行为和事件结果形成动态闭环，支撑涌现式叙事。"
+              },
+              {
+                "title": "上下文输入管理",
+                "description": "基于 Unity 新输入系统实现上下文感知输入框架，通过 Action Map 状态切换、阻塞式 UI 输入栈和服务注册模式治理复杂交互场景。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "工程与性能",
+            "items": [
+              {
+                "title": "预加载与异步工作流",
+                "description": "通过 Preload 阶段异步预加载核心数据表、配置文件和常用资源，把高成本加载集中到启动阶段，减少运行时卡顿。"
+              },
+              {
+                "title": "对象池与分帧执行",
+                "description": "对高频实体统一做对象池管理，并将程序化生成等重任务拆成多帧执行，降低 GC 峰值与单帧耗时过长导致的卡顿。"
+              },
+              {
+                "title": "动态 LOD 与智能剔除",
+                "description": "实现 VisibilityManager，根据对象与主摄像机距离和可见性动态启停渲染与更新逻辑，降低大规模场景下的渲染开销。"
+              },
+              {
+                "title": "高效存档",
+                "description": "主导用 protobuf-net 替代原生 JSON 大地图存档，为 Unity 类型补充包装支持，并采用分离式存档策略，使读写速度提升数倍、文件体积压缩 60% 以上。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点模块",
+            "items": [
+              "GameFramework 二次开发、MVC 数据驱动流程与混合配置工具链。",
+              "Hex Grid 世界生成、人口热力图、首都定位与国家边界扩张模拟。",
+              "法宝策略背包、上下文输入管理与复杂交互状态治理。",
+              "随机事件系统与基于图的社会关系系统联动。",
+              "protobuf-net 存档优化、预加载、对象池、分帧执行与 VisibilityManager。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "Steam 主页",
+                "href": "https://steamcommunity.com/profiles/76561198340584094",
+                "external": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "knowledge-graph",
+        "title": "短文本知识标注系统",
+        "category": "featured",
+        "meta": [
+          "百度",
+          "知识增强文本理解",
+          "主要 RD",
+          "项目团队 4 人",
+          "2020.07-2023.04"
+        ],
+        "description": "围绕短文本知识增强文本理解，建设 TermTree 知识底座、多任务标注模型、数据工程和服务部署链路。",
+        "tags": [
+          "NLP",
+          "知识图谱",
+          "TermTree",
+          "知识标注",
+          "Prompt Learning",
+          "序列标注",
+          "Term-Linking",
+          "GPU / CPU 部署"
+        ],
+        "eyebrow": "Featured Project / Knowledge Infrastructure",
+        "subtitle": "负责知识底座、模型训练、样本工程、评测体系与服务落地，形成从知识生产到业务使用的完整闭环。",
+        "media": {
+          "gallery": [],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目影响",
+            "items": [
+              {
+                "value": "30+",
+                "label": "支持上线项目"
+              },
+              {
+                "value": "亿级",
+                "label": "年度辐射收入"
+              },
+              {
+                "value": "95%+",
+                "label": "分类 F1"
+              },
+              {
+                "value": "93%+",
+                "label": "序列标注切分准确率"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "这个项目从词汇理解和句子理解两个层面探索中文通用知识表征与应用，目标是把中文短文本稳定映射到概念、实体、意图和主题等可计算知识结构上，形成可解释、可扩展的文本理解基础设施。",
+              "负责 TermTree 知识底座建设、模型与标签体系设计、训练样本和评测体系搭建、term-linking 策略研发，以及服务部署侧工程落地，覆盖知识生产、模型训练和业务使用链路。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "知识底座建设",
+            "items": [
+              {
+                "title": "TermTree 知识体系",
+                "description": "负责 TermTree 知识库维护与体系建设，参与设计整体层次结构和知识组织方式，主导知识数据生产流程，完成高频实体、常见概念和词类知识的筛选、清洗、映射与入库，最终沉淀出百万级知识节点。"
+              },
+              {
+                "title": "知识表示与组织方案",
+                "description": "推动知识库从“词表堆积”演进为具备层次关系、类别约束和可计算性的知识体系，让它既能用于召回和检索，也能作为下游分类、序列标注和知识关联任务的重要先验输入。"
+              },
+              {
+                "title": "百科词条知识引入",
+                "description": "参与把两千万级百科词条持续引入知识体系，补足实体与概念覆盖范围，持续扩展 TermTree 的知识底座。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "模型与数据工程",
+            "items": [
+              {
+                "title": "多任务知识标注模型",
+                "description": "参与短文本多任务模型结构设计，基于 prompt-learning 同时完成主题分类、意图分类和词类序列标注，并利用类别与词类之间的相关性增强概念与实体识别效果。"
+              },
+              {
+                "title": "标签体系设计",
+                "description": "辅助设计模型标签体系，从通用知识理解视角对短文本进行多层次划分；分类侧覆盖 20+ 个大类、600+ 个小类，序列标注侧对中文词汇空间做系统划分，并细化常见复合词。"
+              },
+              {
+                "title": "训练样本与评测体系",
+                "description": "负责从 0 到 1 构建训练集与测试集，基于搜索日志和多个垂类业务样本建立百万级训练语料，并从通用文本、特殊垂类、重点业务和典型恶劣 case 四个维度建设评测集，约束模型升级质量。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "知识应用与服务落地",
+            "items": [
+              {
+                "title": "Term-Linking 与知识挖掘",
+                "description": "参与知识关联、知识挖掘和知识判定策略研发，在 term-linking 场景下结合模型输出与知识库结构设计两阶段关联策略，让文本到知识节点的映射更稳定、可控且更高效。"
+              },
+              {
+                "title": "样本工程化与迭代效率",
+                "description": "抽象训练数据构建过程中的通用模块，将样本采样、规则过滤、样本清洗、标签映射和数据拼装流程工程化，提升训练样本补充和版本迭代效率。"
+              },
+              {
+                "title": "服务部署与业务支撑",
+                "description": "负责上层服务开发及模型、策略模块在 GPU 集群和 CPU 集群上的部署，支撑内部多个业务线的大规模高频调用，并在效果、吞吐与稳定性之间做好平衡。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点工作",
+            "items": [
+              "建设 TermTree 知识底座，沉淀百万级知识节点和可计算的层次知识体系。",
+              "参与短文本多任务知识标注模型设计，统一主题、意图与词类序列标注任务。",
+              "设计 20+ 大类、600+ 小类标签体系，并细化中文词汇空间的序列标注标签。",
+              "从 0 到 1 建设百万级训练语料、评测集与质量控制流程，降低模型迭代风险。",
+              "研发 term-linking、知识挖掘和服务部署链路，支撑广告、搜索、AIGC 等方向调用。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "相关开源项目：解语",
+                "href": "/projects/jieyu-text-to-knowledge"
+              },
+              {
+                "label": "项目官网",
+                "href": "https://www.paddlepaddle.org.cn/textToKnowledge",
+                "external": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "baike-knowledge-base",
+        "title": "百度百科词条与知识库关联项目",
+        "category": "featured",
+        "meta": [
+          "百度实习",
+          "知识图谱 / NLP",
+          "主要RD",
+          "项目团队 3 人"
+        ],
+        "description": "面向两千万级百科词条引入场景，设计从预处理、分类细化到知识节点映射和天级更新的完整链路，为知识库扩充提供稳定的数据生产能力。",
+        "tags": [
+          "知识图谱",
+          "百科词条分类",
+          "知识关联",
+          "深度学习分类",
+          "候选召回",
+          "类别细化",
+          "Airflow",
+          "数据工程"
+        ],
+        "eyebrow": "Featured Project / Internship",
+        "subtitle": "负责整体流程设计、分类与关联策略落地，以及 Airflow 天级更新数据流搭建。",
+        "media": {
+          "gallery": [],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目影响",
+            "items": [
+              {
+                "value": "6阶段",
+                "label": "主流程拆解"
+              },
+              {
+                "value": "98%",
+                "label": "整体准确率"
+              },
+              {
+                "value": "98%+",
+                "label": "召回率"
+              },
+              {
+                "value": "2.6kw+",
+                "label": "高质量结果"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "这个项目面向两千万级百度百科词条引入场景，目标是把开放百科页面稳定映射到内部知识库中的实体与概念节点，持续扩充知识库覆盖范围，并为后续知识理解任务提供更完整的基础底座。",
+              "负责整体计算流程设计、分类与关联策略落地，以及例行数据流搭建，覆盖大规模开放页面处理、多义项消歧和知识节点映射的数据生产链路。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "流程拆解",
+            "items": [
+              {
+                "title": "端到端计算链路",
+                "description": "将百科词条关联流程拆成预处理、粗分类、关键词召回、类别细化、知识库关联、知识库更新六个阶段，明确各阶段输入输出与收口标准，让两千万级词条处理能够以稳定的分层流程持续运行。"
+              },
+              {
+                "title": "预处理输入规整",
+                "description": "在预处理阶段结合标题、义项、定义句、结构化字段等页面元素做筛选、整合和规范化处理，提取后续分类与关联所需的核心信息，提升整条链路的输入质量。"
+              },
+              {
+                "title": "多阶段候选空间收缩",
+                "description": "重点处理大规模开放页面、多义项、分类不确定和节点歧义问题，通过多阶段策略逐步压缩候选空间，避免把复杂关联问题粗暴压成单步分类或单步匹配。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "分类与关联策略",
+            "items": [
+              {
+                "title": "粗分类模型",
+                "description": "设计粗分类阶段的分类策略与模型方案，利用深度学习分类模型对输入百科词条做第一层类别判断，为后续类别细化和知识节点匹配提供候选范围，降低直接开放关联带来的搜索空间和计算复杂度。"
+              },
+              {
+                "title": "漏召回补强",
+                "description": "针对粗分类阶段的漏召问题，引入百科消歧词和相关规则进行重召回，在效果与召回之间取得更稳平衡，减少高质量百科页面在早期阶段被错误过滤的风险。"
+              },
+              {
+                "title": "类别细化",
+                "description": "利用百科定义句中的句首句尾特征、关键词模式和页面语义特征，对粗分类结果进一步细分，得到可直接用于知识库关联的细粒度语义标签。"
+              },
+              {
+                "title": "知识节点映射",
+                "description": "在细分类结果基础上，将百科义项与知识库概念节点做字符串计算、规则匹配和类别约束收缩，提升义项到知识节点映射的准确性与稳定性。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "数据生产与交付",
+            "items": [
+              {
+                "title": "天级更新数据流",
+                "description": "基于公司内部 Airflow 建设天级更新流水线，完成百科数据定期拉取、处理、结果产出和推送，保证知识库扩充与业务侧数据使用具备较好的时效性。"
+              },
+              {
+                "title": "业务方数据库同步",
+                "description": "推动结果向业务方数据库同步，将百科词条关联结果作为结构化知识特征稳定输出，为后续业务系统调用、特征融合和数据使用提供可靠来源。"
+              },
+              {
+                "title": "结构化数据价值",
+                "description": "与部门其他团队及百科团队协作，将关联结果作为重要特征融合进百科结构化数据中，支撑百度百科实体卡片及其他直接或间接依赖百科词条计算的重点业务。"
+              }
+            ]
+          },
+          {
+            "type": "bullets",
+            "title": "我负责的重点工作",
+            "items": [
+              "设计六阶段端到端处理链路，并明确各阶段输入输出与收口标准。",
+              "基于页面多元素做预处理规整，提升后续分类与关联策略的输入质量。",
+              "设计粗分类模型、消歧词补召回和类别细化策略，逐步收缩开放词条候选空间。",
+              "参与百科义项到知识库概念节点的字符串计算、规则匹配与类别约束映射。",
+              "搭建 Airflow 天级更新流水线并将结果稳定同步到业务方数据库。"
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "sideline",
+        "title": "Sideline 双模式挂机刷宝独立游戏原型",
+        "category": "open_source",
+        "meta": [
+          "GitHub 开源",
+          "独立开发",
+          "Godot 4 / C#",
+          "技术验证阶段"
+        ],
+        "description": "Sideline 是一个把挂机小窗与地下城战斗拼在同一客户端中的 2D 俯视角独立游戏原型。",
+        "tags": [
+          "Godot 4",
+          "C#",
+          "独立游戏",
+          "双模式窗口",
+          "Facet",
+          "Lattice",
+          "客户端运行时",
+          "确定性运行时",
+          "AI 游戏应用"
+        ],
+        "eyebrow": "Open Source / Game Prototype",
+        "subtitle": "项目以真实可运行的游戏原型为载体，验证双模式窗口、Facet 页面运行时与 Lattice 确定性底座的协同结构。",
+        "media": {
+          "gallery": [],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目状态",
+            "items": [
+              {
+                "value": "2",
+                "label": "窗口模式"
+              },
+              {
+                "value": "Godot 4.6.1 Mono",
+                "label": "客户端基础"
+              },
+              {
+                "value": ".NET 8",
+                "label": "目标框架"
+              },
+              {
+                "value": "Tech Validation",
+                "label": "当前阶段"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "Sideline 是一个把挂机资源积累与地下城主动战斗放在同一客户端中的 2D 俯视角独立游戏原型，围绕玩法表达和底层运行时同步推进。",
+              "当前仓库围绕双模式窗口、Facet 页面运行时和 Lattice 确定性底座三条主线持续演进，验证客户端结构、状态组织、调试链路与后续回放能力。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "项目定位",
+            "items": [
+              {
+                "title": "双模式客户端",
+                "description": "在同一进程内承载挂机小窗与地下城大窗两种模式，让资源积累、主动战斗与窗口切换共用同一套客户端主链路。"
+              },
+              {
+                "title": "页面运行时",
+                "description": "Facet 负责页面注册、生命周期、Binding、Lua 控制器、日志、红点和诊断快照，统一收口客户端页面层结构。"
+              },
+              {
+                "title": "确定性底座",
+                "description": "Lattice 围绕定点数、会话运行时、系统调度和历史帧持续收口，为回放、长时模拟和联机能力预留基础。"
+              },
+              {
+                "title": "统一工具链",
+                "description": "项目以 Godot 4.6.1 Mono 和 C# 作为主要开发约束，降低跨语言分层带来的实现与调试复杂度。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "当前状态",
+            "items": [
+              {
+                "title": "客户端主入口",
+                "description": "Main 已负责窗口模式切换、页面打开、Projection 发布与基础协调逻辑，形成双模式客户端的主入口。"
+              },
+              {
+                "title": "窗口管理链路",
+                "description": "WindowManager 已实现挂机小窗与地下城大窗切换、置顶、拖拽与居中等关键交互，支撑核心体验表达。"
+              },
+              {
+                "title": "业务面板",
+                "description": "IdlePanel 与 DungeonPanel 已接入页面生命周期、Projection 消费与运行时验证内容，能够承载原型阶段的核心交互。"
+              },
+              {
+                "title": "页面运行时",
+                "description": "页面运行时、Binding、Lua 宿主、日志、红点、布局实验与诊断快照已经形成可用主链路。"
+              },
+              {
+                "title": "确定性主链路",
+                "description": "定点数、会话运行时、系统调度、历史帧、测试与 benchmark 治理持续建设中，核心 ECS 仍在进一步收口。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "技术架构",
+            "items": [
+              {
+                "title": "表现层",
+                "description": "Godot 场景、窗口、UI 面板、输入与渲染负责玩家可见的交互界面和模式切换表现。"
+              },
+              {
+                "title": "页面运行时层",
+                "description": "Facet 负责页面注册、生命周期、Binding、Lua 控制器、日志、红点和诊断，统一组织页面层行为。"
+              },
+              {
+                "title": "确定性运行时层",
+                "description": "Lattice 负责定点数、会话、系统调度、历史帧与验证治理，承担未来回放与联机能力的底座职责。"
+              },
+              {
+                "title": "文档治理层",
+                "description": "设计文档、开发流程、装配说明与基准验证文档同步沉淀，保证项目在原型阶段也具备可持续迭代的工程边界。"
+              }
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "GitHub 仓库",
+                "href": "https://github.com/zgx197/Sideline",
+                "external": true
+              },
+              {
+                "label": "项目网站",
+                "href": "https://zgx197.github.io/Sideline/",
+                "external": true
+              },
+              {
+                "label": "游戏设计文档",
+                "href": "https://github.com/zgx197/Sideline/blob/main/docs/design/GameDesign.md",
+                "external": true
+              },
+              {
+                "label": "Facet README",
+                "href": "https://github.com/zgx197/Sideline/blob/main/godot/scripts/facet/README.md",
+                "external": true
+              },
+              {
+                "label": "Lattice README",
+                "href": "https://github.com/zgx197/Sideline/blob/main/godot/scripts/lattice/README.md",
+                "external": true
+              }
+            ]
+          },
+          {
+            "type": "tags",
+            "title": "技术标签",
+            "items": [
+              "Godot 4",
+              "C#",
+              "独立游戏",
+              "双模式窗口",
+              "Facet",
+              "Lattice",
+              "确定性运行时",
+              "客户端运行时",
+              "AI 游戏应用"
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "sceneblueprint",
+        "title": "SceneBlueprint 2.0 开源场景蓝图框架",
+        "category": "open_source",
+        "meta": [
+          "开源框架",
+          "独立开发",
+          "Tauri / React / Rust",
+          "外部编辑器方向"
+        ],
+        "description": "SceneBlueprint 2.0 是面向游戏开发的引擎无关外部场景蓝图编辑器，围绕 Authoring Source、Runtime Contract 和 Engine Integration 组织完整工具链。",
+        "tags": [
+          "SceneBlueprint",
+          "External Editor",
+          "Tauri 2",
+          "TypeScript",
+          "Rust",
+          "C#",
+          "Runtime Contract",
+          "Engine Integration"
+        ],
+        "eyebrow": "Open Source / SceneBlueprint 2.0",
+        "subtitle": "项目从 Unity 内嵌工具演进为外部编辑器优先的内容制作工具链，持续验证 Authoring、运行时契约与引擎集成之间的边界划分。",
+        "media": {
+          "manifestPath": "/project-assets/open-source/sceneblueprint/manifest.json",
+          "featured": {
+            "kind": "image",
+            "src": "/project-assets/open-source/sceneblueprint/images/00-启动页.png",
+            "alt": "SceneBlueprint 启动总览",
+            "title": "SceneBlueprint 启动总览",
+            "description": "展示桌面应用启动阶段的主视觉与初始化状态。"
+          },
+          "gallery": [
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/sceneblueprint/images/01-主页面.png",
+              "alt": "SceneBlueprint 编辑器总览",
+              "title": "SceneBlueprint 编辑器总览",
+              "description": "展示工作区布局、图形编辑区域和主界面结构。"
+            }
+          ],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目状态",
+            "items": [
+              {
+                "value": "External Editor",
+                "label": "当前入口形态"
+              },
+              {
+                "value": "Tauri 2",
+                "label": "桌面宿主"
+              },
+              {
+                "value": "3",
+                "label": "核心分层"
+              },
+              {
+                "value": "Apache-2.0",
+                "label": "开源协议"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "SceneBlueprint 2.0 面向游戏开发中的场景蓝图制作链路，围绕 Authoring、导出契约和引擎侧消费组织可跨引擎复用的内容工具链。",
+              "项目建立在早期 com.zgx197.sceneblueprint 与 com.zgx197.nodegraph 的实践基础上，当前转向外部编辑器优先架构，由独立桌面工作台承接图形化编辑、校验、分析、调试与导出，再由引擎集成层承接资源同步与项目适配。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "项目定位",
+            "items": [
+              {
+                "title": "外部编辑器主入口",
+                "description": "把场景蓝图制作流程从引擎内嵌工具窗口中抽离出来，由外部桌面编辑器承担 Authoring、分析、调试与导出主链路。"
+              },
+              {
+                "title": "契约边界",
+                "description": "通过 Export / Contract 作为中间边界，把编辑器工作资产与引擎侧消费结构明确区分，降低制作层和运行时层耦合。"
+              },
+              {
+                "title": "跨引擎接入",
+                "description": "预留 Unity、Godot 及其他引擎的接入空间，让同一份蓝图导出结果能够被不同宿主稳定消费。"
+              },
+              {
+                "title": "工具链平台化",
+                "description": "项目关注的不只是图编辑本身，还包括工作台、导出链路、发布资产、文档体系和后续工具治理，目标是形成可持续演进的平台型内容工具。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "当前状态",
+            "items": [
+              {
+                "title": "前端工作台",
+                "description": "TypeScript + React 负责工作台界面、图编辑交互和状态组织，承担内容制作主入口。"
+              },
+              {
+                "title": "桌面宿主与分发",
+                "description": "Tauri 2 + Rust 负责桌面窗口、系统集成和发布产物组织，当前已经明确 setup、msi、portable 等 Windows 分发路径。"
+              },
+              {
+                "title": "契约层",
+                "description": "Schema 与导出契约层作为编辑器和运行时之间的正式边界，负责承接蓝图导出结果的稳定消费格式。"
+              },
+              {
+                "title": "引擎集成层",
+                "description": "C# 工具链与 integrations 目录用于承接 Unity、Godot 等引擎侧导入、资源同步、运行时接线和项目适配。"
+              },
+              {
+                "title": "文档与发布治理",
+                "description": "项目同时维护对外文档、开发文档和 Releases 资产说明，使工程设计、使用入口和交付方式保持同步。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "技术架构",
+            "items": [
+              {
+                "title": "前端工作台",
+                "description": "TypeScript + React 负责工作台界面、图编辑交互、状态组织和前端壳层，是内容制作主入口。"
+              },
+              {
+                "title": "桌面宿主",
+                "description": "Rust + Tauri 负责桌面宿主、窗口能力、系统集成和安装包分发，承担工具独立运行的基础设施职责。"
+              },
+              {
+                "title": "契约层",
+                "description": "Schema 与导出边界负责把蓝图制作结果沉淀为可被不同引擎消费的正式契约，避免宿主各自解释同一份资产。"
+              },
+              {
+                "title": "引擎集成层",
+                "description": "C# 工具链负责承接 Unity / Godot 等引擎中的导入、同步、预览桥接、运行时接线和项目级适配。"
+              }
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "GitHub 仓库",
+                "href": "https://github.com/zgx197/SceneBlueprint",
+                "external": true
+              },
+              {
+                "label": "项目网站",
+                "href": "https://zgx197.github.io/SceneBlueprint/",
+                "external": true
+              },
+              {
+                "label": "GitHub Releases",
+                "href": "https://github.com/zgx197/SceneBlueprint/releases",
+                "external": true
+              },
+              {
+                "label": "早期 Unity 实践仓库",
+                "href": "https://github.com/zgx197/com.zgx197.sceneblueprint",
+                "external": true
+              },
+              {
+                "label": "NodeGraph 基础仓库",
+                "href": "https://github.com/zgx197/com.zgx197.nodegraph",
+                "external": true
+              }
+            ]
+          },
+          {
+            "type": "tags",
+            "title": "技术标签",
+            "items": [
+              "SceneBlueprint",
+              "Tauri 2",
+              "TypeScript",
+              "React",
+              "Rust",
+              "C#",
+              "Runtime Contract",
+              "Engine Integration",
+              "External Editor"
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "datum-platform",
+        "title": "DatumPlatform Unity 数值评估平台",
+        "category": "open_source",
+        "meta": [
+          "GitHub 开源",
+          "独立开发",
+          "React / ASP.NET Core / C#",
+          "Unity 数值分析"
+        ],
+        "description": "DatumPlatform 是一个围绕 Unity 导出 JSON 数据构建的数值评估工作台，串联数据加载、评分计算、可视化校准和 AI 辅助解释。",
+        "tags": [
+          "React 18",
+          "ASP.NET Core 9",
+          "C#",
+          "DatumCore",
+          "SignalR",
+          "Ant Design",
+          "ECharts",
+          "AI Assistant",
+          "Unity Tools"
+        ],
+        "eyebrow": "Open Source / DatumPlatform",
+        "subtitle": "项目采用 datum-web、DatumServer、DatumCore 三层解耦结构，覆盖评分看板、模板分析、关卡难度和实时热更新链路。",
+        "media": {
+          "manifestPath": "/project-assets/open-source/datum-platform/manifest.json",
+          "featured": {
+            "kind": "image",
+            "src": "/project-assets/open-source/datum-platform/images/00-首页.png",
+            "alt": "DatumPlatform 首页总览",
+            "title": "DatumPlatform 首页总览",
+            "description": "展示平台首页中的核心概览信息与主入口布局。"
+          },
+          "gallery": [
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/01-关卡分析1.png",
+              "alt": "关卡分析总览",
+              "title": "关卡分析总览",
+              "description": "展示关卡分析页面的总体结构与主要指标。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/02-关卡分析2.png",
+              "alt": "关卡分析明细",
+              "title": "关卡分析明细",
+              "description": "展示关卡分析中的局部指标与细节面板。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/03-关卡分析3.png",
+              "alt": "关卡分析对比",
+              "title": "关卡分析对比",
+              "description": "展示不同关卡或波次结果的对比视图。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/04-模版分析.png",
+              "alt": "模板分析总览",
+              "title": "模板分析总览",
+              "description": "展示模板聚类、一致性和缩放趋势分析结果。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/05-权重调节1.png",
+              "alt": "权重校准面板",
+              "title": "权重校准面板",
+              "description": "展示校准样本维护与参数调节入口。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/06-权重调节2.png",
+              "alt": "权重校准结果",
+              "title": "权重校准结果",
+              "description": "展示权重调整后的结果输出与指标反馈。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/07-数值健康.png",
+              "alt": "数值健康报告",
+              "title": "数值健康报告",
+              "description": "展示异常项、健康度与全局问题汇总。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/08-系统文档.png",
+              "alt": "系统文档视图",
+              "title": "系统文档视图",
+              "description": "展示公式文档或说明文档在平台内的阅读入口。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/09-调试窗口.png",
+              "alt": "调试窗口视图",
+              "title": "调试窗口视图",
+              "description": "展示调试辅助窗口与问题排查视图。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/datum-platform/images/10-整体设置.png",
+              "alt": "平台设置总览",
+              "title": "平台设置总览",
+              "description": "展示 AI、界面与工具配置等系统设置入口。"
+            }
+          ],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目状态",
+            "items": [
+              {
+                "value": "3",
+                "label": "核心分层"
+              },
+              {
+                "value": "12",
+                "label": "AI Tools"
+              },
+              {
+                "value": "SignalR",
+                "label": "实时更新"
+              },
+              {
+                "value": "Portable EXE",
+                "label": "分发形态"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "DatumPlatform 面向 Unity 项目的数值策划、战斗策划和技术策划场景，接收 datum_export 中的怪物、技能、Buff、模板和关卡 JSON，在同一工作台内完成评分、校准、模板分析、关卡难度分析和 AI 辅助解释。",
+              "项目把 datum-web、DatumServer、DatumCore 拆成清晰三层：前端负责可视化与交互，后端负责数据装载、REST / SignalR 接口与文件监听，DatumCore 负责评分聚合和校准算法，并通过 netstandard2.1 保留与 Unity 侧共享核心逻辑的空间。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "项目定位",
+            "items": [
+              {
+                "title": "Unity 数据评估工作台",
+                "description": "围绕 Unity 导出的 JSON 数据建立统一分析入口，把怪物评分、模板一致性、关卡节奏和异常点排查收拢到同一套工作台中。"
+              },
+              {
+                "title": "评分与校准闭环",
+                "description": "从评分计算、样本维护到最小二乘法权重校准形成闭环，让数值模型既能快速试验，也能沉淀相对稳定的权重配置。"
+              },
+              {
+                "title": "实时热更新链路",
+                "description": "通过 FileWatcherService 监听 datum_export 目录变化，后端自动重载数据并通过 SignalR 推送前端刷新，减少手动重启和重复验证成本。"
+              },
+              {
+                "title": "AI 辅助分析",
+                "description": "内置 AI 助手抽屉和 12 个 Tool Functions，支持流式输出、Markdown、KaTeX 和 Mermaid，用于直接查询系统数据和解释评分结果。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "当前状态",
+            "items": [
+              {
+                "title": "评分看板",
+                "description": "Score Dashboard 已支持全量怪物综合评分、EHP / DPS / Control 分解、异常标记、关卡筛选和详情抽屉，用于快速定位异常个体。"
+              },
+              {
+                "title": "模板与健康分析",
+                "description": "Template Analysis 与 Health Report 已覆盖模板聚类、变种评分、缩放趋势、一致性偏差和跨模板健康度汇总。"
+              },
+              {
+                "title": "关卡难度视图",
+                "description": "Level View 可查看总难度、峰值难度、波次详情、元素分布和难度弹性，并支持存活时间滑块联动重算。"
+              },
+              {
+                "title": "文档与设置页",
+                "description": "Formula Doc 与 Settings 已接入 Markdown 文档、Mermaid / KaTeX 渲染、AI 配置和快捷键治理，让公式、配置和工具入口保持同仓维护。"
+              },
+              {
+                "title": "本地开发与分发",
+                "description": "dev.ps1 已收口前后端启动、健康检查和文档同步流程；build.ps1 则负责前端构建、后端发布和便携包产物组织。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "技术架构",
+            "items": [
+              {
+                "title": "数据入口层",
+                "description": "datum_export 与 docs 负责承接 Unity 导出的 JSON 数据和系统文档，作为整个评估平台的原始输入。"
+              },
+              {
+                "title": "服务与计算层",
+                "description": "DatumServer 负责数据加载、文件监听、HTTP API 和 SignalR Hub；DatumCore 负责评分聚合、模板发现、关卡指标与校准算法。"
+              },
+              {
+                "title": "展示与交互层",
+                "description": "datum-web 基于 React 18、Ant Design、ECharts、TanStack Query 和 Zustand 组织评分、模板、关卡、校准、健康和 AI 助手等页面。"
+              },
+              {
+                "title": "文档与分发层",
+                "description": "项目同步维护设计文档、公式参考、环境说明、GitHub Actions 构建工作流和 Release 便携包，确保研发、验证和交付路径一致。"
+              }
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "GitHub 仓库",
+                "href": "https://github.com/zgx197/DatumPlatform",
+                "external": true
+              },
+              {
+                "label": "GitHub Releases",
+                "href": "https://github.com/zgx197/DatumPlatform/releases",
+                "external": true
+              },
+              {
+                "label": "构建工作流",
+                "href": "https://github.com/zgx197/DatumPlatform/actions/workflows/build-portable-exe.yml",
+                "external": true
+              },
+              {
+                "label": "平台设计文档",
+                "href": "https://github.com/zgx197/DatumPlatform/blob/main/docs/Datum_Platform_Design.md",
+                "external": true
+              }
+            ]
+          },
+          {
+            "type": "tags",
+            "title": "技术标签",
+            "items": [
+              "React 18",
+              "ASP.NET Core 9",
+              "C#",
+              "SignalR",
+              "Unity Tools",
+              "ECharts",
+              "Ant Design",
+              "AI Assistant",
+              "DatumCore"
+            ]
+          }
+        ]
+      },
+      {
+        "slug": "jieyu-text-to-knowledge",
+        "title": "解语（Text to Knowledge）知识增强文本理解项目",
+        "category": "open_source",
+        "meta": [
+          "开源项目",
+          "PaddleNLP 方向",
+          "TermTree / 知识标注",
+          "参与建设"
+        ],
+        "description": "解语是面向中文文本理解的知识增强项目，由 TermTree 知识底座、知识标注工具集和知识挖掘方案组成；我的工作集中在 TermTree 体系建设与短文本知识标注训练。",
+        "tags": [
+          "PaddleNLP",
+          "NLP",
+          "知识增强",
+          "TermTree",
+          "知识标注",
+          "模型训练",
+          "数据工程",
+          "Term-Linking"
+        ],
+        "eyebrow": "Open Source / Text to Knowledge",
+        "subtitle": "项目围绕中文全词类知识体系与知识增强解析链路，组织从文本到知识的可计算映射能力。",
+        "media": {
+          "manifestPath": "/project-assets/open-source/jieyu-text-to-knowledge/manifest.json",
+          "featured": {
+            "kind": "image",
+            "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/00-官网.png",
+            "alt": "解语官网首页",
+            "title": "解语官网首页",
+            "description": "展示项目官网首页和整体对外介绍信息。"
+          },
+          "gallery": [
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/01-官网.png",
+              "alt": "解语能力总览",
+              "title": "解语能力总览",
+              "description": "展示官网中的能力说明与功能概览。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/02-官网.png",
+              "alt": "解语知识体系",
+              "title": "解语知识体系",
+              "description": "展示官网中的知识结构与能力体系页面。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/03-官网.png",
+              "alt": "解语应用说明",
+              "title": "解语应用说明",
+              "description": "展示官网中的应用说明或示例页面。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/04-官网.png",
+              "alt": "解语补充说明",
+              "title": "解语补充说明",
+              "description": "展示官网中的补充说明页面。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/05-解语author.png",
+              "alt": "解语参与说明",
+              "title": "解语参与说明",
+              "description": "展示解语项目在作者与参与者维度的补充信息。"
+            },
+            {
+              "kind": "image",
+              "src": "/project-assets/open-source/jieyu-text-to-knowledge/images/06-百科知识库author.png",
+              "alt": "百科知识库参与说明",
+              "title": "百科知识库参与说明",
+              "description": "展示百科知识库相关内容在作者与参与者维度的补充信息。"
+            }
+          ],
+          "resources": []
+        },
+        "sections": [
+          {
+            "type": "metrics",
+            "title": "项目状态",
+            "items": [
+              {
+                "value": "160+",
+                "label": "TermType"
+              },
+              {
+                "value": "7000+",
+                "label": "Subtype"
+              },
+              {
+                "value": "100 万+",
+                "label": "Term 规模"
+              },
+              {
+                "value": "PaddleNLP",
+                "label": "开源落点"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "title": "项目概览",
+            "paragraphs": [
+              "解语（Text to Knowledge）面向中文文本理解中的知识增强问题，围绕中文全词类知识体系、知识标注工具集和知识挖掘方案组织文本到知识链路。",
+              "项目对外公开的能力结构包括 TermTree 百科知识树、中文知识标注工具集和中文知识挖掘方案；我的工作集中在 TermTree 知识底座建设，以及短文本知识标注方向的模型调研、训练、评测与数据流程搭建。"
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "项目定位",
+            "items": [
+              {
+                "title": "知识底座",
+                "description": "用 TermTree 承接中文词类、概念与实体的层次组织，为文本分类、序列标注、知识关联和模板生成提供统一先验输入。"
+              },
+              {
+                "title": "知识增强解析",
+                "description": "通过知识标注把文本从字符串层推进到词类、概念和实体层面的可计算表示，支撑更稳定的中文理解和特征构建。"
+              },
+              {
+                "title": "文本到知识链路",
+                "description": "在知识标注结果之上继续衔接模板生成、知识抽取、schema 化映射和 term-linking，形成从文本理解到结构化知识产出的扩展路径。"
+              },
+              {
+                "title": "数据与评测治理",
+                "description": "项目同时覆盖训练语料、标签体系、测试集组织与评测机制，保证模型升级过程可验证、可解释。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "当前状态",
+            "items": [
+              {
+                "title": "TermTree 知识体系",
+                "description": "开源结构中已经形成 TermType、Subtype 与 Term 的层次化知识组织，README 中给出 160+ termtype、7000+ subtype 和约 100 万 term 的试用版规模。"
+              },
+              {
+                "title": "知识标注工具集",
+                "description": "项目提供词类知识标注、名词短语标注与中文预训练模型等能力，用于把中文句子转化为更稳定的知识特征与标注结果。"
+              },
+              {
+                "title": "知识挖掘方案",
+                "description": "在知识标注之后继续衔接模板生成、知识抽取和结构化映射，使文本理解结果可以进一步服务下游知识生产和应用场景。"
+              },
+              {
+                "title": "参与范围",
+                "description": "我的工作集中在 TermTree 体系建设与短文本知识标注方向，覆盖知识底座、训练数据、模型验证和评测流程相关工作。"
+              },
+              {
+                "title": "训练与评测链路",
+                "description": "围绕主题分类、意图分类和词类序列标注，持续建设训练数据、测试集和多测试集联合评测流程，提升模型迭代质量的稳定性。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "技术架构",
+            "items": [
+              {
+                "title": "知识底座层",
+                "description": "TermTree 负责中文词类、概念和实体的层次组织，以及 term-linking 所需的统一知识入口。"
+              },
+              {
+                "title": "标注与模型层",
+                "description": "围绕短文本主题分类、意图分类和词类序列标注组织知识增强模型输入、训练流程与推理能力。"
+              },
+              {
+                "title": "知识挖掘与应用层",
+                "description": "在标注结果之上继续衔接模板生成、知识抽取、结构化映射和下游应用接入，形成文本到知识的扩展链路。"
+              },
+              {
+                "title": "数据与评测层",
+                "description": "通过样本生产、标签映射、测试集设计和多测试集联合评估，约束模型升级质量并支撑持续迭代。"
+              }
+            ]
+          },
+          {
+            "type": "highlights",
+            "title": "我的贡献",
+            "items": [
+              {
+                "title": "TermTree 体系建设",
+                "description": "参与设计 TermTree 层次结构与知识组织方式，推动知识库从词表堆积演进为具备层次关系、类别约束和可计算性的知识体系。"
+              },
+              {
+                "title": "知识数据生产",
+                "description": "主导高频实体、常见概念和词类知识的筛选、清洗、映射与入库流程，支撑百万级知识节点沉淀和后续知识增强特征生产。"
+              },
+              {
+                "title": "短文本知识标注模型训练",
+                "description": "参与短文本多任务模型结构设计，围绕主题分类、意图分类和词类序列标注开展模型调研、训练与效果验证。"
+              },
+              {
+                "title": "训练数据与评测体系",
+                "description": "从 0 到 1 构建训练集与测试集，设计样本生产、标签映射、评测集组织和多测试集联合评估流程，提升模型迭代稳定性与可解释性。"
+              }
+            ]
+          },
+          {
+            "type": "links",
+            "title": "相关链接",
+            "items": [
+              {
+                "label": "返回项目列表",
+                "href": "/about"
+              },
+              {
+                "label": "返回简历",
+                "href": "/resume"
+              },
+              {
+                "label": "GitHub 项目目录",
+                "href": "https://github.com/PaddlePaddle/PaddleNLP/tree/develop/slm/examples/text_to_knowledge",
+                "external": true
+              },
+              {
+                "label": "GitHub TermTree 子目录",
+                "href": "https://github.com/PaddlePaddle/PaddleNLP/tree/develop/slm/examples/text_to_knowledge/termtree",
+                "external": true
+              },
+              {
+                "label": "GitHub TermTreeC 子目录",
+                "href": "https://github.com/PaddlePaddle/PaddleNLP/tree/develop/slm/examples/text_to_knowledge/termtreec",
+                "external": true
+              },
+              {
+                "label": "项目官网",
+                "href": "https://www.paddlepaddle.org.cn/textToKnowledge",
+                "external": true
+              }
+            ]
+          },
+          {
+            "type": "tags",
+            "title": "技术标签",
+            "items": [
+              "PaddleNLP",
+              "Python",
+              "NLP",
+              "知识增强",
+              "TermTree",
+              "知识标注",
+              "Term-Linking",
+              "模型训练",
+              "数据工程"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

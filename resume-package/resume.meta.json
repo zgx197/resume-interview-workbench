@@ -1,0 +1,48 @@
+{
+  "packageVersion": "resume-data-package@v4",
+  "packageType": "resume-data-export",
+  "exportedAt": "2026-04-02T12:33:00.815Z",
+  "source": {
+    "site": "https://zgx197.top",
+    "resumePath": "/resume",
+    "jsonPath": "/resume.json",
+    "metaPath": "/resume.meta.json",
+    "schemaPath": "/resume.schema.json"
+  },
+  "documents": {
+    "resume": "resume.json",
+    "meta": "resume.meta.json",
+    "schema": "resume.schema.json",
+    "readme": "README.md"
+  },
+  "topLevelFields": {
+    "profile": "个人基础信息与公开对外形象。",
+    "resume": "简历主体，包括摘要、经历、技能、荣誉和教育等结构化内容。",
+    "projects": "项目详情数据，包含项目卡片摘要、媒体资源和分区内容。"
+  },
+  "fieldSemantics": {
+    "profile.role": "候选人的当前职业定位描述，不等于严格的求职岗位名称。",
+    "profile.strengths": "候选人的自我能力概括，适合辅助理解整体画像，但不应替代具体经历和项目事实。",
+    "resume.headline": "网页简历对外展示使用的总述句。",
+    "resume.summaryPoints": "候选人的摘要表达，用于快速理解背景与关注方向。",
+    "resume.focusAreas": "候选人主动强调的关注方向与能力侧重。",
+    "resume.profileFacts": "面向外部展示的标签化事实信息。",
+    "resume.experiences[].summary": "单段经历的摘要说明，可作为该经历的概括入口。",
+    "resume.experiences[].bullets": "候选人想强调的核心贡献点。",
+    "resume.experiences[].details.refined": "整理后的详细补充说明，更适合直接阅读。",
+    "resume.experiences[].details.original": "更接近原始简历或原始材料的表述。",
+    "resume.experiences[].projectSlugs": "该段经历直接关联的项目 slug 列表，可用于和 projects 建立映射。",
+    "resume.skillGroups": "按主题分组的技能列表。",
+    "projects[].category.featured": "重点项目或工作项目。",
+    "projects[].category.open_source": "开源项目。",
+    "projects[].meta": "项目卡片的辅助元信息，通常包含时间、角色、平台或技术范围。",
+    "projects[].tags": "项目标签，用于表达技术关键词和主题。",
+    "projects[].media": "项目素材清单，包含主图、图集和资源链接。",
+    "projects[].sections": "项目详情分区。不同 type 表示不同的信息组织方式，例如 showcase、metrics、archive、links。"
+  },
+  "notes": [
+    "本文件只提供导出包背景说明和字段语义提示，不对外部系统的消费方式做预设。",
+    "如需获得完整事实数据，请以 resume.json 为准。",
+    "如需理解结构约束和字段类型，请结合 resume.schema.json 一起阅读。"
+  ]
+}
