@@ -1,0 +1,199 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Resume Interview Workbench</title>
+    <link rel="stylesheet" href="/vendor/vis-network.min.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <section class="panel brand-panel">
+          <p class="eyebrow">Resume Interview Workbench</p>
+          <h1>AI Interview Studio</h1>
+          <p class="brand-copy">面向简历驱动技术面试的可观测工作台。</p>
+          <div id="provider-badge" class="provider-badge">Loading provider...</div>
+        </section>
+
+        <section class="panel candidate-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Candidate</p>
+              <h2>候选人画像</h2>
+            </div>
+          </div>
+          <p id="candidate-name" class="identity-name mono"></p>
+          <p id="candidate-role" class="identity-role"></p>
+          <ul id="candidate-summary" class="compact-list"></ul>
+        </section>
+
+        <section class="panel template-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Template</p>
+              <h2>面试模板</h2>
+            </div>
+            <span id="template-status" class="status-badge neutral">未保存</span>
+          </div>
+          <p class="panel-note">普通使用只需填写公司、岗位、介绍和面试官角色。更细的基座配置放在专家模式中。</p>
+
+          <div class="template-library">
+            <label class="field">
+              <span>模板库</span>
+              <select id="template-select"></select>
+            </label>
+            <div class="action-grid">
+              <button id="load-template-button" class="secondary-button">加载</button>
+              <button id="new-template-button" class="secondary-button">新建</button>
+              <button id="copy-template-button" class="secondary-button">复制</button>
+              <button id="delete-template-button" class="ghost-danger-button">删除</button>
+            </div>
+            <div id="template-meta" class="template-meta empty-state">选择模板后，这里会显示最近使用与最后更新时间。</div>
+          </div>
+
+          <div class="wizard-block">
+            <label class="field">
+              <span>模板名称</span>
+              <input id="template-name-input" type="text" placeholder="例如：某游戏工作室 U3D 技术负责人面试" />
+            </label>
+
+            <label class="field">
+              <span>公司名称</span>
+              <input id="company-name-input" type="text" placeholder="例如：HUNGRY STUDIO" />
+            </label>
+
+            <label class="field">
+              <span>公司介绍</span>
+              <textarea id="company-intro-input" rows="4" placeholder="简要说明公司背景、团队规模、产品线与业务阶段。"></textarea>
+            </label>
+
+            <label class="field">
+              <span>岗位方向</span>
+              <input id="job-direction-input" type="text" placeholder="例如：高级游戏 U3D 开发工程师" />
+            </label>
+
+            <label class="field">
+              <span>岗位介绍</span>
+              <textarea id="job-description-input" rows="5" placeholder="填写岗位职责、能力要求和重点考察方向。"></textarea>
+            </label>
+
+            <label class="field">
+              <span>其他内容</span>
+              <textarea id="additional-context-input" rows="4" placeholder="可补充薪资、地点、标签，或你希望重点追问的方向。"></textarea>
+            </label>
+
+            <label class="field">
+              <span>面试官角色</span>
+              <input id="interviewer-role-name-input" type="text" placeholder="例如：技术负责人、CTO、游戏主策划" />
+            </label>
+          </div>
+
+          <details class="advanced-panel">
+            <summary>专家模式：调整模板基座</summary>
+            <p class="panel-note">只有需要微调面试风格和能力覆盖时，才需要展开这里。</p>
+            <label class="field">
+              <span>面试官风格基座</span>
+              <select id="role-select"></select>
+            </label>
+            <label class="field">
+              <span>能力方向基座</span>
+              <select id="job-select"></select>
+            </label>
+          </details>
+
+          <label class="toggle-field">
+            <input id="web-search-input" type="checkbox" />
+            <span>允许 AI 在规划和出题阶段按需联网搜索</span>
+          </label>
+
+          <div class="button-stack">
+            <button id="save-template-button" class="secondary-button">保存模板</button>
+            <button id="start-button" class="primary-button">开始面试</button>
+          </div>
+        </section>
+
+        <section class="panel topic-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Topics</p>
+              <h2>候选人主题图谱</h2>
+            </div>
+          </div>
+          <div id="topic-grid" class="topic-grid"></div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <section class="panel hero-panel">
+          <div class="hero-copy">
+            <p class="eyebrow">Session</p>
+            <h2 id="session-title">尚未开始</h2>
+            <p id="session-subtitle" class="hero-subtitle">先选择模板或创建一个新的面试模板，再启动面试。</p>
+          </div>
+          <div id="stage-chip" class="stage-chip">Idle</div>
+        </section>
+
+        <section class="workspace-grid">
+          <section class="session-main">
+            <section class="panel graph-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Graph</p>
+                  <h2>面试官状态图</h2>
+                </div>
+                <span id="run-status" class="run-status">idle</span>
+              </div>
+              <p class="panel-note">Graph View 只作为辅助理解区域。主交互仍然是下方的面试对话，点击节点再查看详细状态。</p>
+              <div id="run-graph" class="run-graph empty-state">开始面试后，这里会显示当前回合的状态图。</div>
+              <details class="graph-detail-shell" open>
+                <summary>节点详情</summary>
+                <div id="graph-detail" class="graph-detail empty-state">选择图中的节点后，这里会显示该节点的详细信息。</div>
+              </details>
+            </section>
+
+            <section class="panel conversation-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Conversation</p>
+                  <h2>面试对话</h2>
+                </div>
+                <span id="turn-counter" class="turn-counter">0 / 0</span>
+              </div>
+              <div id="conversation" class="conversation empty-state">暂无对话。</div>
+              <div class="answer-box">
+                <textarea id="answer-input" rows="7" placeholder="在这里输入候选人的回答。" disabled></textarea>
+                <button id="answer-button" class="primary-button" disabled>提交回答</button>
+              </div>
+            </section>
+          </section>
+
+          <aside class="session-aside">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Plan</p>
+                  <h2>面试计划</h2>
+                </div>
+              </div>
+              <div id="plan-list" class="plan-list empty-state">开始面试后，这里会显示分阶段计划。</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Report</p>
+                  <h2>复盘</h2>
+                </div>
+              </div>
+              <div id="report-panel" class="empty-state">完成面试后，这里会显示结构化复盘。</div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
