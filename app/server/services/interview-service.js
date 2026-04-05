@@ -3,10 +3,10 @@ import { loadInterviewCatalog, findJob, findRole } from "./catalog-loader.js";
 import {
   assessInterviewAnswer,
   buildInterviewPlan,
-  deliberateInterviewAction,
   generateInterviewQuestion,
   generateInterviewReport
 } from "./llm-provider.js";
+import { buildInterviewDecision, buildInterviewPolicy } from "./interview-policy.js";
 import { loadResumePackage } from "./resume-loader.js";
 import { publishSession } from "./session-events.js";
 import { createSessionId, listSessions, loadSession, saveSession } from "./session-store.js";
@@ -14,6 +14,7 @@ import { listInterviewTemplates, loadInterviewTemplate, markInterviewTemplateUse
 
 const RUN_PHASES = ["observe", "deliberate", "decide", "execute", "feedback"];
 const inFlightRuns = new Set();
+const pendingPlanRefreshes = new Set();
 
 function configuredProviderKey() {
   return config.moonshotApiKey;
@@ -51,7 +52,7 @@ function buildModelStrategyInfo(providerMeta) {
     purpose: providerMeta.purpose || "default",
     thinkingType: providerMeta.thinkingType || "disabled",
     toolMode: Boolean(providerMeta.toolMode),
-    label: providerMeta.strategyLabel || `${providerMeta.purpose || "default"} · thinking ${thinkingEnabled ? "enabled" : "disabled"}`
+    label: providerMeta.strategyLabel || `${providerMeta.purpose || "default"} / thinking ${thinkingEnabled ? "enabled" : "disabled"}`
   };
 }
 
@@ -107,7 +108,14 @@ function buildTemplateNotes(template, freeformNotes = "") {
   ]);
 }
 
-function buildDraftPlan(job, role) {
+function buildDraftPlan(job, role, normalizedResume) {
+  const recentExperienceTopics = normalizedResume.experiences.slice(0, 2).map((experience) => ({
+    label: `${experience.company} / ${experience.role}`,
+    evidence: [experience.summary, ...(experience.bullets || []).slice(0, 2)],
+    sourceRefs: [{ sourceType: "experience", sourceId: experience.id }]
+  }));
+  const topicsByCategory = Object.groupBy(normalizedResume.topicInventory || [], (topic) => topic.category);
+
   const stages = [
     {
       id: "project-warmup",
@@ -115,7 +123,7 @@ function buildDraftPlan(job, role) {
       title: "项目切入",
       goal: `先由 ${role.name} 建立候选人与岗位的主线映射。`,
       promptHint: "等待正式计划生成。",
-      targetTopics: []
+      targetTopics: recentExperienceTopics
     },
     ...(job.questionAreas || []).map((area) => ({
       id: `area-${area}`,
@@ -123,7 +131,11 @@ function buildDraftPlan(job, role) {
       title: area,
       goal: `覆盖 ${area} 相关能力。`,
       promptHint: "等待正式计划生成。",
-      targetTopics: []
+      targetTopics: (topicsByCategory[area] || []).slice(0, 3).map((topic) => ({
+        label: topic.label,
+        evidence: topic.evidence.slice(0, 2),
+        sourceRefs: topic.sourceRefs
+      }))
     }))
   ];
 
@@ -326,17 +338,6 @@ function buildPublicSession(session) {
   };
 }
 
-function buildInterviewPolicy(normalizedResume, job, role) {
-  return {
-    estimatedYears: normalizedResume.profile.estimatedYearsExperience || 0,
-    targetLevel: (normalizedResume.profile.estimatedYearsExperience || 0) >= 5 ? "senior" : "mid",
-    maxFollowupsPerThread: (normalizedResume.profile.estimatedYearsExperience || 0) >= 5 ? 3 : 2,
-    searchBudgetPerSession: 3,
-    mustCover: job.questionAreas || [],
-    roleBias: role.id
-  };
-}
-
 function createThread({ category, label, evidenceSource, stageId }) {
   return {
     id: `thread_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -358,10 +359,6 @@ function createThread({ category, label, evidenceSource, stageId }) {
     lastEvidenceSource: evidenceSource || null,
     lastAssessmentScore: null
   };
-}
-
-function getActiveThread(session) {
-  return (session.topicThreads || []).find((thread) => thread.status === "active") || null;
 }
 
 function closeActiveThreads(session, { exceptThreadId = null, reason = null } = {}) {
@@ -397,7 +394,7 @@ function upsertThreadForDecision(session, decision, question) {
     session.topicThreads.push(thread);
   }
 
-  thread.updatedAt = new Date().toISOString();
+  thread.updatedAt = nowIso();
   thread.questionCount += 1;
   thread.lastDecision = decision.action;
   thread.lastQuestionText = question.text;
@@ -418,7 +415,7 @@ function finalizeThreadAfterAnswer(session, turn, decision) {
     return;
   }
 
-  thread.updatedAt = new Date().toISOString();
+  thread.updatedAt = nowIso();
   thread.answerCount += 1;
   thread.lastAssessmentScore = turn.assessment?.score ?? null;
   if (decision.action === "end_interview" || decision.action === "ask_new_question") {
@@ -458,11 +455,78 @@ function buildObservationForAnswer(session, turn) {
   };
 }
 
+function publishSessionSnapshot(session) {
+  refreshRunProgress(session.currentRun);
+  session.updatedAt = nowIso();
+  publishSession(session.id, buildPublicSession(session));
+}
+
 async function persistSession(session) {
   refreshRunProgress(session.currentRun);
   session.updatedAt = nowIso();
   await saveSession(session);
   publishSession(session.id, buildPublicSession(session));
+}
+
+function buildPlanContext(session, normalizedResume) {
+  return {
+    role: session.role,
+    job: session.job,
+    notes: session.notes,
+    normalizedResume,
+    enableWebSearch: false
+  };
+}
+
+function schedulePlanRefresh(sessionId, delayMs = 0) {
+  if (pendingPlanRefreshes.has(sessionId)) {
+    return;
+  }
+
+  pendingPlanRefreshes.add(sessionId);
+  setTimeout(() => {
+    void refreshDraftPlan(sessionId);
+  }, delayMs);
+}
+
+async function refreshDraftPlan(sessionId) {
+  let shouldRetry = false;
+
+  try {
+    const session = await loadSession(sessionId);
+    if (session.plan?.strategy !== "draft_plan") {
+      return;
+    }
+
+    if (session.status === "processing") {
+      shouldRetry = true;
+      return;
+    }
+
+    const { normalized } = await loadResumePackage();
+    const refinedPlan = await buildInterviewPlan(buildPlanContext(session, normalized));
+
+    const latest = await loadSession(sessionId);
+    if (latest.plan?.strategy !== "draft_plan") {
+      return;
+    }
+
+    if (latest.status === "processing") {
+      shouldRetry = true;
+      return;
+    }
+
+    latest.plan = refinedPlan;
+    latest.coverage = recomputeCoverage(latest);
+    await persistSession(latest);
+  } catch (error) {
+    console.error(`failed to refresh interview plan for ${sessionId}: ${error.message}`);
+  } finally {
+    pendingPlanRefreshes.delete(sessionId);
+    if (shouldRetry) {
+      schedulePlanRefresh(sessionId, 1500);
+    }
+  }
 }
 
 async function runSessionLifecycle(sessionId, handler) {
@@ -478,6 +542,26 @@ async function runSessionLifecycle(sessionId, handler) {
   }
 }
 
+function applyDecisionStageTarget(session, decision) {
+  if (decision.action !== "ask_new_question") {
+    return;
+  }
+
+  const stages = session.plan?.stages || [];
+  if (!stages.length) {
+    return;
+  }
+
+  if (Number.isInteger(decision.targetStageIndex) && decision.targetStageIndex >= 0 && decision.targetStageIndex < stages.length) {
+    session.stageIndex = decision.targetStageIndex;
+    return;
+  }
+
+  if (session.stageIndex < stages.length - 1) {
+    session.stageIndex += 1;
+  }
+}
+
 async function processStartRun(sessionId) {
   await runSessionLifecycle(sessionId, async () => {
     const [{ normalized }, session] = await Promise.all([
@@ -488,31 +572,18 @@ async function processStartRun(sessionId) {
     try {
       setRunPhase(session.currentRun, "observe", "收集候选人画像、岗位要求和当前阶段目标。");
       session.currentRun.debug.observe = buildObservationForStart(session, normalized);
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "deliberate", "分析第一轮应该从哪个主题切入，以及是否需要搜索。");
-      await persistSession(session);
-      const refinedPlan = await buildInterviewPlan({
-        role: session.role,
-        job: session.job,
-        notes: session.notes,
-        normalizedResume: normalized,
-        enableWebSearch: false
-      });
-      session.plan = refinedPlan;
-      session.coverage = buildCoverage(refinedPlan);
-      recordRunStrategy(session.currentRun, "deliberate", refinedPlan._providerMeta);
-      await persistSession(session);
-      session.currentRun.debug.deliberation = await deliberateInterviewAction({
+      publishSessionSnapshot(session);
+      session.currentRun.debug.deliberation = buildInterviewDecision({
         mode: "start",
         session,
-        stage: getCurrentStage(session),
-        normalizedResume: normalized,
-        policy: session.policy
+        stage: getCurrentStage(session)
       });
       recordRunStrategy(session.currentRun, "deliberate", session.currentRun.debug.deliberation._providerMeta);
       session.currentRun.debug.deliberation.modelStrategy = buildModelStrategyInfo(session.currentRun.debug.deliberation._providerMeta);
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "decide", "决定初始动作、线程模式和搜索策略。");
       const decision = {
@@ -520,13 +591,15 @@ async function processStartRun(sessionId) {
         shouldSearch: Boolean(session.enableWebSearch && session.currentRun.debug.deliberation.shouldSearch),
         rationale: session.currentRun.debug.deliberation.rationale,
         threadId: null,
-        topicLabel: session.currentRun.debug.deliberation.topicLabel
+        topicLabel: session.currentRun.debug.deliberation.topicLabel,
+        targetStageIndex: session.currentRun.debug.deliberation.targetStageIndex
       };
       session.currentRun.debug.decision = decision;
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "execute", decision.shouldSearch ? "生成问题前启用联网搜索。" : "直接生成第一道问题。");
-      await persistSession(session);
+      publishSessionSnapshot(session);
+      applyDecisionStageTarget(session, decision);
       const question = await generateInterviewQuestion({
         session,
         stage: getCurrentStage(session),
@@ -544,16 +617,15 @@ async function processStartRun(sessionId) {
         question,
         modelStrategy: buildModelStrategyInfo(question._providerMeta)
       };
-      await persistSession(session);
 
-      setRunPhase(session.currentRun, "feedback", "写回会话状态并等待候选人回答。");
-      await persistSession(session);
       session.status = "active";
+      setRunPhase(session.currentRun, "feedback", "写回会话状态并等待候选人回答。");
       session.currentRun.debug.feedback = {
         summary: "启动轮已完成，当前等待候选人作答。"
       };
       completeRun(session.currentRun);
       await persistSession(session);
+      schedulePlanRefresh(session.id);
     } catch (error) {
       session.status = "failed";
       failRun(session.currentRun, error);
@@ -572,7 +644,7 @@ async function processAnswerRun(sessionId, turnIndex) {
 
     try {
       setRunPhase(session.currentRun, "observe", "分析用户回答、当前线程和覆盖情况。");
-      await persistSession(session);
+      publishSessionSnapshot(session);
       const assessment = await assessInterviewAnswer({
         session,
         stage: getCurrentStage(session),
@@ -588,22 +660,20 @@ async function processAnswerRun(sessionId, turnIndex) {
         modelStrategy: buildModelStrategyInfo(assessment._providerMeta)
       };
       session.coverage = recomputeCoverage(session);
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "deliberate", "判断是继续追问、切换主题、联网搜索还是结束面试。");
-      await persistSession(session);
-      session.currentRun.debug.deliberation = await deliberateInterviewAction({
+      publishSessionSnapshot(session);
+      session.currentRun.debug.deliberation = buildInterviewDecision({
         mode: "answer",
         session,
         stage: getCurrentStage(session),
-        normalizedResume: normalized,
-        policy: session.policy,
         turn,
         assessment
       });
       recordRunStrategy(session.currentRun, "deliberate", session.currentRun.debug.deliberation._providerMeta);
       session.currentRun.debug.deliberation.modelStrategy = buildModelStrategyInfo(session.currentRun.debug.deliberation._providerMeta);
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "decide", "提交下一步动作。");
       const decision = {
@@ -611,13 +681,14 @@ async function processAnswerRun(sessionId, turnIndex) {
         shouldSearch: Boolean(session.enableWebSearch && session.currentRun.debug.deliberation.shouldSearch),
         rationale: session.currentRun.debug.deliberation.rationale,
         threadId: session.currentRun.debug.deliberation.threadMode === "continue" ? turn.threadId : null,
-        topicLabel: session.currentRun.debug.deliberation.topicLabel
+        topicLabel: session.currentRun.debug.deliberation.topicLabel,
+        targetStageIndex: session.currentRun.debug.deliberation.targetStageIndex
       };
       session.currentRun.debug.decision = decision;
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "execute", decision.action === "end_interview" ? "生成最终复盘报告。" : "根据决策生成下一步问题。");
-      await persistSession(session);
+      publishSessionSnapshot(session);
 
       if (decision.action === "end_interview") {
         session.status = "completed";
@@ -629,9 +700,7 @@ async function processAnswerRun(sessionId, turnIndex) {
           summary: "面试结束，复盘报告已生成。"
         };
       } else {
-        if (decision.action === "ask_new_question" && session.stageIndex < session.plan.stages.length - 1) {
-          session.stageIndex += 1;
-        }
+        applyDecisionStageTarget(session, decision);
 
         const question = await generateInterviewQuestion({
           session,
@@ -652,10 +721,7 @@ async function processAnswerRun(sessionId, turnIndex) {
         };
       }
 
-      await persistSession(session);
-
       setRunPhase(session.currentRun, "feedback", "回写线程状态、覆盖率和回合结果。");
-      await persistSession(session);
       turn.processing = false;
       finalizeThreadAfterAnswer(session, turn, session.currentRun.debug.decision);
       session.coverage = recomputeCoverage(session);
@@ -747,12 +813,12 @@ export async function createInterviewSession({ roleId, jobId, notes = "", enable
   const job = buildTemplateDrivenJob(baseJob, resolvedTemplate);
   const mergedNotes = buildTemplateNotes(resolvedTemplate, notes);
 
-  const plan = buildDraftPlan(job, role);
+  const plan = buildDraftPlan(job, role, normalized);
 
   const session = {
     id: createSessionId(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
     status: "processing",
     role,
     job,
@@ -798,7 +864,7 @@ export async function answerInterviewQuestion(sessionId, answer) {
 
   const pendingTurn = {
     index: session.turns.length + 1,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
     question: session.nextQuestion,
     answer,
     assessment: null,

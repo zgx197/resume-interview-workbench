@@ -1,7 +1,6 @@
 import { config } from "../config.js";
 import {
   createFallbackAssessment,
-  createFallbackDeliberation,
   createFallbackPlan,
   createFallbackQuestion,
   createFallbackReport
@@ -41,14 +40,15 @@ function withProviderMeta(result, meta) {
 }
 
 function getPhaseModelStrategy(purpose) {
+  const fastMode = config.interviewRuntimeMode !== "deep";
   switch (purpose) {
     case "plan":
     case "deliberate":
     case "question":
       return {
-        thinkingType: normalizeThinkingType(),
-        temperature: normalizeThinkingType() === "enabled" ? 1.0 : 0.6,
-        topP: normalizeThinkingType() === "enabled" ? 0.95 : undefined
+        thinkingType: fastMode ? "disabled" : normalizeThinkingType(),
+        temperature: fastMode ? 0.6 : (normalizeThinkingType() === "enabled" ? 1.0 : 0.6),
+        topP: fastMode ? undefined : (normalizeThinkingType() === "enabled" ? 0.95 : undefined)
       };
     case "assessment":
     case "report":
@@ -96,24 +96,6 @@ function normalizeAssessmentResult(value) {
     followupNeeded: Boolean(value?.followupNeeded),
     suggestedFollowup: String(value?.suggestedFollowup || "请进一步说明你的具体职责、权衡和验证方式。"),
     evidenceUsed: Array.isArray(value?.evidenceUsed) ? value.evidenceUsed.map((item) => String(item)) : []
-  };
-}
-
-function normalizeDecisionResult(value) {
-  const action = ["ask_followup", "ask_new_question", "end_interview"].includes(value?.action)
-    ? value.action
-    : "ask_new_question";
-  const threadMode = ["continue", "new", "close"].includes(value?.threadMode)
-    ? value.threadMode
-    : (action === "ask_followup" ? "continue" : "close");
-  return {
-    strategy: String(value?.strategy || "structured_deliberation"),
-    action,
-    threadMode,
-    shouldSearch: Boolean(value?.shouldSearch),
-    rationale: String(value?.rationale || ""),
-    topicLabel: String(value?.topicLabel || ""),
-    stopCurrentThread: Boolean(value?.stopCurrentThread)
   };
 }
 
@@ -360,44 +342,6 @@ export async function generateInterviewQuestion(context) {
     enableWebSearch,
     normalizeResult: normalizeQuestionResult,
     purpose: "question"
-  });
-}
-
-export async function deliberateInterviewAction(context) {
-  const { mode, session, stage, normalizedResume, policy, turn, assessment } = context;
-  return generateJson({
-    instructions: [
-      "你是技术面试回合编排器。",
-      "你需要在当前回合结束后判断下一步动作，而不是直接生成问题。",
-      "动作只能是 ask_followup、ask_new_question、end_interview 三者之一。",
-      "如果允许联网搜索，只在当前问题依赖最新外部信息或行业现状时才返回 shouldSearch=true。",
-      "不要因为一般性的技术追问就开启搜索。",
-      "输出 JSON 字段：strategy, action, threadMode, shouldSearch, rationale, topicLabel, stopCurrentThread。",
-      "threadMode 只能是 continue、new、close。"
-    ].join("\n"),
-    input: JSON.stringify({
-      mode,
-      role: session.role,
-      job: session.job,
-      notes: session.notes,
-      enableWebSearch: session.enableWebSearch,
-      stage,
-      policy,
-      coverage: session.coverage,
-      currentThread: session.topicThreads?.find((item) => item.id === (turn?.threadId || session.currentThreadId)) || null,
-      candidate: {
-        profile: normalizedResume.profile,
-        topTopics: normalizedResume.topicInventory.slice(0, 10)
-      },
-      lastTurn: turn ? {
-        question: turn.question,
-        answer: turn.answer,
-        assessment
-      } : null
-    }),
-    fallbackFactory: () => createFallbackDeliberation(context),
-    normalizeResult: normalizeDecisionResult,
-    purpose: "deliberate"
   });
 }
 

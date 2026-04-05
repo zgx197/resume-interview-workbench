@@ -25,6 +25,9 @@ export const config = {
   get moonshotThinking() {
     return process.env.MOONSHOT_THINKING || "enabled";
   },
+  get interviewRuntimeMode() {
+    return process.env.INTERVIEW_RUNTIME_MODE || "fast";
+  },
   get resumePackageDir() {
     return path.join(repoRoot, "resume-package");
   },
