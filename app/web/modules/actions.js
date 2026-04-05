@@ -1,4 +1,4 @@
-import { request } from "./api.js";
+import { fetchObservabilityOverview, fetchSessionObservability, request } from "./api.js";
 import { elements } from "./dom.js";
 import { renderBootstrap, renderSession, syncAnswerControls } from "./renderers.js";
 import { state } from "./state.js";
@@ -14,8 +14,9 @@ import {
   upsertTemplate
 } from "./templates.js";
 
-// 所有副作用都收口在 actions：
-// 包括请求、SSE 生命周期、按钮状态和本地 store 同步。
+const OBSERVABILITY_POLL_INTERVAL_MS = 15_000;
+
+// 所有副作用都收口在 actions，包括请求、SSE 生命周期和本地状态同步。
 function stopSessionStream() {
   if (state.eventSource) {
     state.eventSource.close();
@@ -24,8 +25,7 @@ function stopSessionStream() {
   }
 }
 
-// 每场面试只允许存在一个活跃 EventSource。
-// 切换 session 时必须先关掉旧流，否则旧数据会污染当前界面。
+// 每场面试只保留一个活跃 EventSource，避免旧 session 的事件串进当前界面。
 function startSessionStream(sessionId) {
   if (state.eventSource && state.streamSessionId === sessionId) {
     return;
@@ -46,6 +46,89 @@ function startSessionStream(sessionId) {
 
   state.eventSource = stream;
   state.streamSessionId = sessionId;
+}
+
+function stopObservabilityPolling() {
+  if (state.observabilityPollingTimer) {
+    clearInterval(state.observabilityPollingTimer);
+    state.observabilityPollingTimer = null;
+  }
+}
+
+export async function refreshObservability() {
+  // 日志聚合视图走独立只读接口，避免把调试刷新绑进面试热路径。
+  const requestToken = ++state.observabilityRequestToken;
+  const sessionId = state.session?.id || "";
+
+  try {
+    const [overview, sessionSummary] = await Promise.all([
+      fetchObservabilityOverview({
+        limit: 6,
+        fileLimit: 3,
+        lineLimitPerFile: 4000
+      }),
+      sessionId
+        ? fetchSessionObservability(sessionId, {
+          timelineLimit: 8,
+          providerLimit: 6,
+          slowLimit: 6,
+          jobLimit: 6,
+          fileLimit: 3,
+          lineLimitPerFile: 4000
+        })
+        : Promise.resolve(null)
+    ]);
+
+    if (requestToken !== state.observabilityRequestToken) {
+      return;
+    }
+
+    if (sessionId && state.session?.id !== sessionId) {
+      return;
+    }
+
+    state.observabilityOverview = overview;
+    state.observabilitySession = sessionSummary;
+    if (!sessionSummary) {
+      state.observabilityScope = "global";
+    }
+    state.observabilityError = "";
+  } catch (error) {
+    if (requestToken !== state.observabilityRequestToken) {
+      return;
+    }
+
+    state.observabilityError = error.message || "日志聚合视图加载失败";
+    if (!sessionId) {
+      state.observabilitySession = null;
+      state.observabilityScope = "global";
+    }
+  } finally {
+    if (requestToken === state.observabilityRequestToken) {
+      renderSession();
+    }
+  }
+}
+
+export function startObservabilityPolling() {
+  if (state.observabilityPollingTimer) {
+    return;
+  }
+
+  // 调试视图用低频轮询就够了，重点是可读性，不追求逐事件实时。
+  state.observabilityPollingTimer = setInterval(() => {
+    refreshObservability();
+  }, OBSERVABILITY_POLL_INTERVAL_MS);
+}
+
+function switchObservabilityScope(scope) {
+  const normalizedScope = scope === "global" ? "global" : "session";
+  if (normalizedScope === "session" && !state.observabilitySession) {
+    return;
+  }
+
+  state.observabilityScope = normalizedScope;
+  renderSession();
 }
 
 async function saveTemplate() {
@@ -142,8 +225,10 @@ async function startInterview() {
       }
     }
 
+    state.observabilityScope = "session";
     elements.answerInput.value = "";
     renderSession();
+    refreshObservability();
     startSessionStream(state.session.id);
   } finally {
     elements.startButton.disabled = false;
@@ -165,6 +250,7 @@ async function submitAnswer() {
     });
     elements.answerInput.value = "";
     renderSession();
+    refreshObservability();
     startSessionStream(state.session.id);
   } finally {
     syncAnswerControls();
@@ -193,6 +279,17 @@ function bindTemplateFormDirtyTracking() {
   });
 }
 
+function bindObservabilityInteractions() {
+  elements.observabilityPanel?.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-observability-scope]");
+    if (!toggle) {
+      return;
+    }
+
+    switchObservabilityScope(toggle.dataset.observabilityScope);
+  });
+}
+
 export function bindUiEvents() {
   elements.loadTemplateButton.addEventListener("click", loadSelectedTemplate);
   elements.newTemplateButton.addEventListener("click", () => fillTemplateForm(createBlankTemplate()));
@@ -203,4 +300,6 @@ export function bindUiEvents() {
   elements.answerButton.addEventListener("click", submitAnswer);
   elements.answerInput.addEventListener("input", syncAnswerControls);
   bindTemplateFormDirtyTracking();
+  bindObservabilityInteractions();
+  window.addEventListener("beforeunload", stopObservabilityPolling);
 }

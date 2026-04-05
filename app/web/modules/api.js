@@ -13,3 +13,33 @@ export function request(url, options = {}) {
     return payload;
   });
 }
+
+function buildQueryString(params = {}) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") {
+      continue;
+    }
+    searchParams.set(key, String(value));
+  }
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+export function fetchBootstrap() {
+  return request("/api/bootstrap");
+}
+
+export function fetchObservabilityOverview(params = {}) {
+  return request(`/api/debug/logs/summary${buildQueryString(params)}`);
+}
+
+export function fetchSessionObservability(sessionId, params = {}) {
+  if (!sessionId) {
+    return Promise.resolve(null);
+  }
+
+  return request(`/api/debug/logs/sessions/${encodeURIComponent(sessionId)}${buildQueryString(params)}`);
+}

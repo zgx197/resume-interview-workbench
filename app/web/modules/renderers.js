@@ -12,10 +12,12 @@ import { state } from "./state.js";
 import { createBlankTemplate, fillTemplateForm, renderTemplatePicker, sortTemplates } from "./templates.js";
 import {
   escapeHtml,
+  formatDateTime,
   formatDuration,
   getLivePhaseDuration,
   renderMarkdown,
-  renderPill
+  renderPill,
+  truncateText
 } from "./utils.js";
 
 const BACKGROUND_JOB_STATUS_LABELS = {
@@ -393,6 +395,201 @@ function renderBackgroundJobs() {
   elements.backgroundJobsPanel.innerHTML = jobs.map(renderBackgroundJobCard).join("");
 }
 
+function renderObservabilityRow({ title, subtitle, meta, badges = [] }) {
+  return `
+    <div class="observability-row">
+      <div class="observability-row-main">
+        <strong>${escapeHtml(title)}</strong>
+        ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
+      </div>
+      <div class="observability-row-side">
+        ${badges.length ? `<div class="summary-badges">${badges.join("")}</div>` : ""}
+        ${meta ? `<span class="observability-meta">${escapeHtml(meta)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderObservabilitySourceCard(overview, sessionSummary) {
+  const files = overview?.source?.files || [];
+  const sessionId = sessionSummary?.sessionId || state.session?.id || "";
+
+  return `
+    <article class="report-card observability-card">
+      <div class="turn-header">
+        <div>
+          <p class="card-kicker">Observability</p>
+          <h3 class="card-title">聚合总览</h3>
+          <p class="summary-copy">最近日志文件、当前过滤范围和活跃 session 统计。</p>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(formatDateTime(overview?.generatedAt || sessionSummary?.generatedAt || null))}
+        </div>
+      </div>
+      <div class="metric-grid compact">
+        <div class="metric-tile">
+          <span class="metric-label">日志文件</span>
+          <strong>${escapeHtml(files.length || 0)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">可见日志</span>
+          <strong>${escapeHtml(overview?.source?.visibleEntryCount ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">当前 Session</span>
+          <strong>${escapeHtml(sessionSummary?.source?.matchedEntryCount ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">后台任务</span>
+          <strong>${escapeHtml(sessionSummary?.backgroundJobs?.length ?? "--")}</strong>
+        </div>
+      </div>
+      <div class="chip-wrap">
+        ${files.length
+          ? files.map((file) => `<span class="topic-tag compact">${escapeHtml(file)}</span>`).join("")
+          : '<span class="muted">暂无日志文件</span>'}
+      </div>
+      ${sessionId ? `<div class="turn-meta"><span>${escapeHtml(sessionId)}</span></div>` : ""}
+    </article>
+  `;
+}
+
+function renderSlowSpanCard(overview) {
+  const items = overview?.slowSpans?.items || [];
+
+  return `
+    <article class="report-card observability-card">
+      <div class="turn-header">
+        <div>
+          <p class="card-kicker">Slow Spans</p>
+          <h3 class="card-title">最近慢调用</h3>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(`阈值 ${overview?.slowSpans?.thresholdMs ?? "--"} ms`)}
+        </div>
+      </div>
+      <div class="observability-list">
+        ${items.length
+          ? items.map((item) => renderObservabilityRow({
+            title: item.summary || `${item.component} / ${item.event}`,
+            subtitle: item.phase || item.purpose || item.jobKind || item.event,
+            meta: `${formatDateTime(item.ts)} · ${formatDuration(item.durationMs)}`,
+            badges: [
+              renderPill(item.component || "unknown"),
+              item.status ? renderPill(item.status) : ""
+            ].filter(Boolean)
+          })).join("")
+          : '<p class="muted">最近没有可展示的慢调用。</p>'}
+      </div>
+    </article>
+  `;
+}
+
+function renderProviderCallCard(overview, sessionSummary) {
+  const items = (sessionSummary?.recentProviderCalls?.length
+    ? sessionSummary.recentProviderCalls
+    : overview?.recentProviderCalls) || [];
+  const scopeLabel = sessionSummary?.recentProviderCalls?.length ? "当前 Session" : "最近日志";
+
+  return `
+    <article class="report-card observability-card">
+      <div class="turn-header">
+        <div>
+          <p class="card-kicker">Provider Calls</p>
+          <h3 class="card-title">最近模型调用</h3>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(scopeLabel)}
+        </div>
+      </div>
+      <div class="observability-list">
+        ${items.length
+          ? items.map((item) => renderObservabilityRow({
+            title: `${item.purpose || "unknown"} / ${item.model || "unknown"}`,
+            subtitle: truncateText(item.summary || item.fallbackReason || "", 56),
+            meta: `${formatDateTime(item.ts)} · ${formatDuration(item.durationMs)}`,
+            badges: [
+              item.fallbackUsed ? renderPill("fallback", "accent") : "",
+              item.thinkingType ? renderPill(item.thinkingType) : "",
+              item.enableWebSearch ? renderPill("web") : ""
+            ].filter(Boolean)
+          })).join("")
+          : '<p class="muted">最近还没有 provider 调用记录。</p>'}
+      </div>
+    </article>
+  `;
+}
+
+function renderSessionTimelineCard(sessionSummary) {
+  const items = sessionSummary?.timeline || [];
+
+  return `
+    <article class="report-card observability-card">
+      <div class="turn-header">
+        <div>
+          <p class="card-kicker">Session Timeline</p>
+          <h3 class="card-title">当前 Session 时间线</h3>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(`${items.length} 条`)}
+        </div>
+      </div>
+      <div class="observability-list">
+        ${items.length
+          ? items.map((item) => renderObservabilityRow({
+            title: item.label || `${item.component} / ${item.event}`,
+            subtitle: item.phase || item.purpose || item.jobKind || "",
+            meta: `${formatDateTime(item.ts)}${item.durationMs ? ` · ${formatDuration(item.durationMs)}` : ""}`,
+            badges: [
+              item.turnIndex !== null ? renderPill(`Round ${item.turnIndex}`) : "",
+              item.fallbackUsed ? renderPill("fallback", "accent") : ""
+            ].filter(Boolean)
+          })).join("")
+          : '<p class="muted">开始面试后，这里会显示当前 session 的关键时间线。</p>'}
+      </div>
+    </article>
+  `;
+}
+
+function renderObservability() {
+  if (!elements.observabilityPanel) {
+    return;
+  }
+
+  // 这里优先展示“人能快速读懂”的聚合摘要，而不是把原始日志直接倾倒到界面里。
+  const overview = state.observabilityOverview;
+  const sessionSummary = state.observabilitySession;
+
+  if (!overview && !state.observabilityError) {
+    elements.observabilityPanel.className = "empty-state";
+    elements.observabilityPanel.textContent = "日志聚合视图加载中...";
+    return;
+  }
+
+  const cards = [];
+
+  if (state.observabilityError) {
+    cards.push(`
+      <article class="report-card observability-card observability-error-card">
+        <p class="card-kicker">Observability</p>
+        <h3 class="card-title">日志聚合视图暂不可用</h3>
+        <div class="markdown-block subtle">${renderMarkdown(state.observabilityError, { empty: "请求失败" })}</div>
+      </article>
+    `);
+  }
+
+  if (overview) {
+    cards.push(renderObservabilitySourceCard(overview, sessionSummary));
+    cards.push(renderSlowSpanCard(overview));
+    cards.push(renderProviderCallCard(overview, sessionSummary));
+  }
+
+  cards.push(renderSessionTimelineCard(sessionSummary));
+
+  elements.observabilityPanel.className = "report-grid";
+  elements.observabilityPanel.innerHTML = cards.join("");
+}
+
 function renderReportLegacy() {
   const reportJob = state.session?.backgroundJobs?.find((job) => job.kind === "report")
     || state.session?.reportJob
@@ -657,6 +854,202 @@ function renderReport() {
   `;
 }
 
+function renderObservabilityPanelRow({ title, subtitle, meta, badges = [] }) {
+  return `
+    <div class="observability-row compact">
+      <div class="observability-row-main">
+        <strong>${escapeHtml(title)}</strong>
+        ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
+      </div>
+      <div class="observability-row-side">
+        ${badges.length ? `<div class="summary-badges">${badges.join("")}</div>` : ""}
+        ${meta ? `<span class="observability-meta">${escapeHtml(meta)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function resolveObservabilityPanelScope() {
+  if (state.observabilityScope === "session" && state.observabilitySession) {
+    return "session";
+  }
+  return "global";
+}
+
+function buildObservabilityPanelModel() {
+  const scope = resolveObservabilityPanelScope();
+  const overview = state.observabilityOverview;
+  const sessionSummary = state.observabilitySession;
+  const source = scope === "session" ? sessionSummary : overview;
+
+  return {
+    scope,
+    sessionSummary,
+    files: overview?.source?.files || [],
+    generatedAt: source?.generatedAt || overview?.generatedAt || sessionSummary?.generatedAt || null,
+    sourceCount: scope === "session"
+      ? (sessionSummary?.source?.matchedEntryCount ?? 0)
+      : (overview?.source?.visibleEntryCount ?? 0),
+    slowSpans: source?.slowSpans?.items || [],
+    slowThresholdMs: source?.slowSpans?.thresholdMs ?? overview?.slowSpans?.thresholdMs ?? null,
+    providerCalls: source?.recentProviderCalls || [],
+    timeline: scope === "session"
+      ? (sessionSummary?.timeline || [])
+      : (overview?.recentTimeline || [])
+  };
+}
+
+function renderObservabilityPanelCard({ kicker, title, countLabel, items, emptyText, buildRow }) {
+  return `
+    <article class="report-card observability-card compact">
+      <div class="observability-card-header">
+        <div>
+          <p class="card-kicker">${escapeHtml(kicker)}</p>
+          <h3 class="card-title">${escapeHtml(title)}</h3>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(countLabel)}
+        </div>
+      </div>
+      <div class="observability-list compact">
+        ${items.length
+          ? items.map((item) => buildRow(item)).join("")
+          : `<p class="muted">${escapeHtml(emptyText)}</p>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderObservabilityPanel() {
+  if (!elements.observabilityPanel) {
+    return;
+  }
+
+  if (!state.observabilityOverview && !state.observabilityError) {
+    elements.observabilityPanel.className = "empty-state";
+    elements.observabilityPanel.textContent = "日志聚合视图加载中...";
+    return;
+  }
+
+  const model = buildObservabilityPanelModel();
+  const isSessionScope = model.scope === "session";
+  const hasSessionScope = Boolean(model.sessionSummary);
+  const sessionId = model.sessionSummary?.sessionId || state.session?.id || "";
+
+  const slowCard = renderObservabilityPanelCard({
+    kicker: "Slow Spans",
+    title: "最近慢调用",
+    countLabel: `阈值 ${model.slowThresholdMs ?? "--"} ms`,
+    items: model.slowSpans,
+    emptyText: "最近没有可展示的慢调用。",
+    buildRow: (item) => renderObservabilityPanelRow({
+      title: item.summary || `${item.component} / ${item.event}`,
+      subtitle: item.phase || item.purpose || item.jobKind || item.event,
+      meta: `${formatDateTime(item.ts)} · ${formatDuration(item.durationMs)}`,
+      badges: [
+        renderPill(item.component || "unknown"),
+        item.status ? renderPill(item.status) : ""
+      ].filter(Boolean)
+    })
+  });
+
+  const providerCard = renderObservabilityPanelCard({
+    kicker: "Provider Calls",
+    title: "最近模型调用",
+    countLabel: `${model.providerCalls.length} 条`,
+    items: model.providerCalls,
+    emptyText: "最近还没有 provider 调用记录。",
+    buildRow: (item) => renderObservabilityPanelRow({
+      title: `${item.purpose || "unknown"} / ${item.model || "unknown"}`,
+      subtitle: truncateText(item.summary || item.fallbackReason || "", 52),
+      meta: `${formatDateTime(item.ts)} · ${formatDuration(item.durationMs)}`,
+      badges: [
+        item.fallbackUsed ? renderPill("fallback", "accent") : "",
+        item.thinkingType ? renderPill(item.thinkingType) : "",
+        item.enableWebSearch ? renderPill("web") : ""
+      ].filter(Boolean)
+    })
+  });
+
+  const timelineCard = renderObservabilityPanelCard({
+    kicker: isSessionScope ? "Session Timeline" : "Global Timeline",
+    title: isSessionScope ? "当前 Session 时间线" : "最近全局时间线",
+    countLabel: `${model.timeline.length} 条`,
+    items: model.timeline,
+    emptyText: isSessionScope
+      ? "开始面试后，这里会显示当前 session 的关键时间线。"
+      : "最近还没有可展示的全局时间线。",
+    buildRow: (item) => renderObservabilityPanelRow({
+      title: item.label || `${item.component} / ${item.event}`,
+      subtitle: item.phase || item.purpose || item.jobKind || "",
+      meta: `${formatDateTime(item.ts)}${item.durationMs ? ` · ${formatDuration(item.durationMs)}` : ""}`,
+      badges: [
+        item.turnIndex !== null ? renderPill(`Round ${item.turnIndex}`) : "",
+        item.fallbackUsed ? renderPill("fallback", "accent") : ""
+      ].filter(Boolean)
+    })
+  });
+
+  const errorCard = state.observabilityError
+    ? `
+      <article class="report-card observability-card observability-error-card">
+        <p class="card-kicker">Observability</p>
+        <h3 class="card-title">日志聚合视图暂不可用</h3>
+        <div class="markdown-block subtle">${renderMarkdown(state.observabilityError, { empty: "请求失败" })}</div>
+      </article>
+    `
+    : "";
+
+  elements.observabilityPanel.className = "observability-shell";
+  elements.observabilityPanel.innerHTML = `
+    <div class="observability-toolbar">
+      <div>
+        <p class="card-kicker">Observability</p>
+        <h3 class="card-title">聚合视图</h3>
+        <p class="summary-copy">慢调用、模型调用和关键时间线压缩到一屏内观察。</p>
+      </div>
+      <div class="observability-toolbar-side">
+        <div class="scope-toggle" role="tablist" aria-label="日志聚合范围">
+          <button
+            type="button"
+            class="scope-toggle-button ${isSessionScope ? "is-active" : ""}"
+            data-observability-scope="session"
+            ${hasSessionScope ? "" : "disabled"}
+          >
+            仅看当前 Session
+          </button>
+          <button
+            type="button"
+            class="scope-toggle-button ${!isSessionScope ? "is-active" : ""}"
+            data-observability-scope="global"
+          >
+            看全局
+          </button>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(isSessionScope ? "当前 Session" : "全局")}
+          ${renderPill(formatDateTime(model.generatedAt))}
+        </div>
+      </div>
+    </div>
+    <div class="observability-summary-strip">
+      <div class="summary-badges">
+        ${renderPill(`日志 ${model.files.length}`)}
+        ${renderPill(`范围内 ${model.sourceCount}`)}
+        ${renderPill(`慢调用 ${model.slowSpans.length}`)}
+        ${renderPill(`模型调用 ${model.providerCalls.length}`)}
+      </div>
+      ${isSessionScope && sessionId ? `<span class="observability-meta">${escapeHtml(sessionId)}</span>` : ""}
+    </div>
+    ${errorCard}
+    <div class="observability-grid">
+      ${slowCard}
+      ${providerCard}
+      ${timelineCard}
+    </div>
+  `;
+}
+
 export function syncAnswerControls() {
   const canAnswer = state.session?.status === "active";
   elements.answerInput.disabled = !canAnswer;
@@ -700,6 +1093,7 @@ export function renderSession() {
     renderRunState();
     renderReport();
     renderBackgroundJobs();
+    renderObservabilityPanel();
     syncAnswerControls();
     stopRunClock();
     return;
@@ -730,6 +1124,7 @@ export function renderSession() {
   renderRunState();
   renderReport();
   renderBackgroundJobs();
+  renderObservabilityPanel();
   syncAnswerControls();
   ensureRunClock();
   updateShellSummary();

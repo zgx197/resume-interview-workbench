@@ -87,6 +87,7 @@ body {
 .plan-list,
 .conversation,
 .report-grid,
+.observability-list,
 .graph-detail,
 .graph-detail-sections,
 .answer-box {
@@ -703,6 +704,138 @@ button:disabled {
   gap: 12px;
 }
 
+.observability-card {
+  display: grid;
+  gap: 12px;
+}
+
+.observability-card.compact {
+  align-content: start;
+  min-height: 100%;
+}
+
+.observability-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.observability-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.observability-toolbar,
+.observability-summary-strip,
+.observability-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.observability-toolbar-side {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.scope-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(88, 63, 28, 0.12);
+  background: rgba(255, 250, 244, 0.9);
+}
+
+.scope-toggle-button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.84rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.scope-toggle-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+}
+
+.scope-toggle-button.is-active {
+  background: rgba(15, 118, 110, 0.12);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.14);
+}
+
+.scope-toggle-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.observability-list {
+  gap: 10px;
+}
+
+.observability-list.compact {
+  gap: 8px;
+}
+
+.observability-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(88, 63, 28, 0.08);
+  background: rgba(255, 252, 247, 0.82);
+}
+
+.observability-row.compact {
+  padding: 10px 12px;
+}
+
+.observability-row-main {
+  display: grid;
+  gap: 4px;
+}
+
+.observability-row-main strong {
+  line-height: 1.45;
+}
+
+.observability-row-main p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.observability-row-side {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.observability-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.observability-error-card {
+  border-color: rgba(192, 86, 33, 0.16);
+  background: linear-gradient(180deg, rgba(255, 247, 242, 0.96), rgba(255, 250, 246, 0.9));
+}
+
 .background-job-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -810,6 +943,7 @@ button:disabled {
 .plan-list.empty-state,
 #report-panel.empty-state,
 #background-jobs-panel.empty-state,
+#observability-panel.empty-state,
 .template-meta.empty-state {
   border-radius: var(--radius-lg);
   border: 1px dashed var(--border);
@@ -836,6 +970,10 @@ button:disabled {
   }
 
   .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .observability-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -878,8 +1016,33 @@ button:disabled {
   .hero-metrics,
   .dual-field,
   .metric-grid.compact,
-  .detail-split {
+  .detail-split,
+  .background-job-metrics,
+  .observability-row {
     grid-template-columns: 1fr;
+  }
+
+  .observability-toolbar,
+  .observability-summary-strip,
+  .observability-card-header {
+    flex-direction: column;
+  }
+
+  .observability-row-side {
+    justify-items: start;
+  }
+
+  .observability-toolbar-side {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .scope-toggle {
+    width: 100%;
+  }
+
+  .observability-meta {
+    white-space: normal;
   }
 
   .dialogue-bubble.interviewer,

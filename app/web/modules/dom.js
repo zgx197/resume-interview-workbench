@@ -44,5 +44,6 @@ export const elements = {
   answerInput: query("#answer-input"),
   answerButton: query("#answer-button"),
   reportPanel: query("#report-panel"),
-  backgroundJobsPanel: query("#background-jobs-panel")
+  backgroundJobsPanel: query("#background-jobs-panel"),
+  observabilityPanel: query("#observability-panel")
 };
