@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { createLogger } from "../lib/logger.js";
 import { loadInterviewCatalog, findJob, findRole } from "./catalog-loader.js";
 import {
   assessInterviewAnswer,
@@ -15,6 +16,7 @@ import { listInterviewTemplates, loadInterviewTemplate, markInterviewTemplateUse
 const RUN_PHASES = ["observe", "deliberate", "decide", "execute", "feedback"];
 const inFlightRuns = new Set();
 const pendingBackgroundJobs = new Set();
+const interviewLogger = createLogger({ component: "interview-service" });
 const BACKGROUND_JOB_KIND = {
   PLAN_REFRESH: "plan_refresh",
   REPORT: "report",
@@ -36,6 +38,27 @@ function compactLines(parts) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function buildSessionLogContext(sessionOrId, extra = {}) {
+  const sessionId = typeof sessionOrId === "string" ? sessionOrId : sessionOrId?.id;
+  const runId = typeof sessionOrId === "object" ? (sessionOrId?.currentRun?.id || null) : null;
+  const turnIndex = typeof sessionOrId === "object"
+    ? sessionOrId?.currentRun?.payload?.turnIndex
+    : undefined;
+
+  return Object.fromEntries(
+    Object.entries({
+      sessionId,
+      runId,
+      turnIndex,
+      ...extra
+    }).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+}
+
+function createSessionLogger(sessionOrId, extra = {}) {
+  return interviewLogger.child(buildSessionLogContext(sessionOrId, extra));
 }
 
 function diffMs(startedAt, endedAt) {
@@ -891,11 +914,29 @@ function publishSessionSnapshot(session) {
   publishSession(session.id, buildPublicSession(session));
 }
 
-async function persistSession(session) {
+async function persistSession(session, logContext = {}) {
+  const logger = createSessionLogger(session, logContext);
+  const span = logger.startSpan("session.persist", {
+    status: session.status,
+    turns: session.turns?.length || 0
+  });
+
   refreshRunProgress(session.currentRun);
   session.updatedAt = nowIso();
-  await saveSession(session);
-  publishSession(session.id, buildPublicSession(session));
+  try {
+    await saveSession(session, buildSessionLogContext(session, logContext));
+    publishSession(session.id, buildPublicSession(session));
+    span.end({
+      status: session.status,
+      turns: session.turns?.length || 0
+    });
+  } catch (error) {
+    span.fail(error, {
+      status: session.status,
+      turns: session.turns?.length || 0
+    });
+    throw error;
+  }
 }
 
 function buildPlanContext(session, normalizedResume) {
@@ -904,7 +945,8 @@ function buildPlanContext(session, normalizedResume) {
     job: session.job,
     notes: session.notes,
     normalizedResume,
-    enableWebSearch: false
+    enableWebSearch: false,
+    logContext: buildSessionLogContext(session)
   };
 }
 
@@ -919,7 +961,9 @@ function schedulePlanRefresh(sessionId, delayMs = 0) {
 }
 
 async function refreshDraftPlanJob({ sessionId }) {
-  const session = await loadSession(sessionId);
+  const session = await loadSession(sessionId, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+  });
   if (session.plan?.strategy !== "draft_plan") {
     return false;
   }
@@ -931,12 +975,16 @@ async function refreshDraftPlanJob({ sessionId }) {
   setSessionJobState(session, BACKGROUND_JOB_KIND.PLAN_REFRESH, startBackgroundJob(
     getSessionJobState(session, BACKGROUND_JOB_KIND.PLAN_REFRESH)
   ));
-  await persistSession(session);
+  await persistSession(session, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+  });
 
   const { normalized } = await loadResumePackage();
   const refinedPlan = attachTopicIdsToPlan(await buildInterviewPlan(buildPlanContext(session, normalized)), normalized);
 
-  const latest = await loadSession(sessionId);
+  const latest = await loadSession(sessionId, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+  });
   if (latest.plan?.strategy !== "draft_plan") {
     return false;
   }
@@ -951,7 +999,9 @@ async function refreshDraftPlanJob({ sessionId }) {
   ));
   syncPlanAndGraph(latest, normalized);
   recomputeDerivedState(latest);
-  await persistSession(latest);
+  await persistSession(latest, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+  });
   return false;
 }
 
@@ -966,7 +1016,9 @@ function scheduleReportRefresh(sessionId, delayMs = 0) {
 }
 
 async function refreshInterviewReportJob({ sessionId }) {
-  const session = await loadSession(sessionId);
+  const session = await loadSession(sessionId, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+  });
   if (session.status !== "completed") {
     return false;
   }
@@ -990,11 +1042,15 @@ async function refreshInterviewReportJob({ sessionId }) {
   setSessionJobState(session, BACKGROUND_JOB_KIND.REPORT, startBackgroundJob(
     getSessionJobState(session, BACKGROUND_JOB_KIND.REPORT)
   ));
-  await persistSession(session);
+  await persistSession(session, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+  });
 
   const report = await generateInterviewReport(session);
 
-  const latest = await loadSession(sessionId);
+  const latest = await loadSession(sessionId, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+  });
   if (latest.status !== "completed") {
     return false;
   }
@@ -1003,7 +1059,9 @@ async function refreshInterviewReportJob({ sessionId }) {
   setSessionJobState(latest, BACKGROUND_JOB_KIND.REPORT, completeBackgroundJob(
     getSessionJobState(latest, BACKGROUND_JOB_KIND.REPORT)
   ));
-  await persistSession(latest);
+  await persistSession(latest, {
+    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+  });
   return false;
 }
 
@@ -1042,7 +1100,11 @@ function scheduleThreadSummaryRefresh(sessionId, threadId, delayMs = 0) {
 }
 
 async function refreshThreadSummaryJob({ sessionId, targetId }) {
-  const session = await loadSession(sessionId);
+  const jobId = backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.THREAD_SUMMARY, targetId);
+  const session = await loadSession(sessionId, {
+    jobId,
+    threadId: targetId
+  });
   if (session.status === "processing") {
     return true;
   }
@@ -1053,9 +1115,15 @@ async function refreshThreadSummaryJob({ sessionId, targetId }) {
   }
 
   setThreadSummaryJobState(thread, startBackgroundJob(getThreadSummaryJobState(thread)));
-  await persistSession(session);
+  await persistSession(session, {
+    jobId,
+    threadId: targetId
+  });
 
-  const latest = await loadSession(sessionId);
+  const latest = await loadSession(sessionId, {
+    jobId,
+    threadId: targetId
+  });
   if (latest.status === "processing") {
     return true;
   }
@@ -1071,17 +1139,34 @@ async function refreshThreadSummaryJob({ sessionId, targetId }) {
   latestThread.summaryRisks = summary.summaryRisks;
   latestThread.summaryUpdatedAt = summary.summaryUpdatedAt;
   setThreadSummaryJobState(latestThread, completeBackgroundJob(getThreadSummaryJobState(latestThread)));
-  await persistSession(latest);
+  await persistSession(latest, {
+    jobId,
+    threadId: targetId
+  });
   return false;
 }
 
 function scheduleBackgroundJob({ sessionId, kind, targetId = null, delayMs = 0 }) {
   const key = backgroundJobKey(sessionId, kind, targetId);
+  const logger = createSessionLogger(sessionId, {
+    jobId: key,
+    threadId: targetId || undefined
+  });
   if (pendingBackgroundJobs.has(key)) {
+    logger.debug("background_job.duplicate_ignored", {
+      jobKind: kind,
+      targetId,
+      delayMs
+    });
     return;
   }
 
   pendingBackgroundJobs.add(key);
+  logger.info("background_job.queued", {
+    jobKind: kind,
+    targetId,
+    delayMs
+  });
   setTimeout(() => {
     void runBackgroundJob({ sessionId, kind, targetId });
   }, delayMs);
@@ -1089,6 +1174,14 @@ function scheduleBackgroundJob({ sessionId, kind, targetId = null, delayMs = 0 }
 
 async function runBackgroundJob({ sessionId, kind, targetId = null }) {
   const key = backgroundJobKey(sessionId, kind, targetId);
+  const logger = createSessionLogger(sessionId, {
+    jobId: key,
+    threadId: targetId || undefined
+  });
+  const span = logger.startSpan("background_job", {
+    jobKind: kind,
+    targetId
+  });
   let shouldRetry = false;
 
   try {
@@ -1105,27 +1198,52 @@ async function runBackgroundJob({ sessionId, kind, targetId = null }) {
       default:
         break;
     }
+    span.end({
+      jobKind: kind,
+      targetId,
+      shouldRetry
+    });
   } catch (error) {
-    console.error(`failed to run background job ${kind} for ${sessionId}: ${error.message}`);
+    span.fail(error, {
+      jobKind: kind,
+      targetId
+    });
 
     try {
-      const latest = await loadSession(sessionId);
+      const latest = await loadSession(sessionId, {
+        jobId: key,
+        threadId: targetId || undefined
+      });
       if (kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY) {
         const thread = getThreadById(latest, targetId);
         if (thread) {
           setThreadSummaryJobState(thread, failBackgroundJob(getThreadSummaryJobState(thread), error));
-          await persistSession(latest);
+          await persistSession(latest, {
+            jobId: key,
+            threadId: targetId || undefined
+          });
         }
       } else {
         setSessionJobState(latest, kind, failBackgroundJob(getSessionJobState(latest, kind), error));
-        await persistSession(latest);
+        await persistSession(latest, {
+          jobId: key,
+          threadId: targetId || undefined
+        });
       }
     } catch (persistError) {
-      console.error(`failed to persist background job error for ${sessionId}: ${persistError.message}`);
+      logger.error("background_job.persist_failure", persistError, {
+        jobKind: kind,
+        targetId
+      });
     }
   } finally {
     pendingBackgroundJobs.delete(key);
     if (shouldRetry) {
+      logger.info("background_job.retry_scheduled", {
+        jobKind: kind,
+        targetId,
+        retryDelayMs: 1500
+      });
       scheduleBackgroundJob({ sessionId, kind, targetId, delayMs: 1500 });
     }
   }
@@ -1133,6 +1251,9 @@ async function runBackgroundJob({ sessionId, kind, targetId = null }) {
 
 async function runSessionLifecycle(sessionId, handler) {
   if (inFlightRuns.has(sessionId)) {
+    createSessionLogger(sessionId).warn("run.lifecycle_skipped", {
+      reason: "already_inflight"
+    });
     return;
   }
 
@@ -1182,16 +1303,34 @@ async function processStartRun(sessionId) {
   await runSessionLifecycle(sessionId, async () => {
     const [{ normalized }, session] = await Promise.all([
       loadResumePackage(),
-      loadSession(sessionId)
+      loadSession(sessionId, buildSessionLogContext(sessionId))
     ]);
+    const logger = createSessionLogger(session);
+    let phaseSpan = null;
 
     try {
+      logger.info("run.started", {
+        runKind: session.currentRun?.kind || "start"
+      });
+
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "observe",
+        runKind: session.currentRun?.kind || "start"
+      });
       syncPlanAndGraph(session, normalized);
       recomputeDerivedState(session);
       setRunPhase(session.currentRun, "observe", "收集候选人画像、岗位要求和当前阶段目标。");
       session.currentRun.debug.observe = buildObservationForStart(session, normalized);
       publishSessionSnapshot(session);
+      phaseSpan.end({
+        phase: "observe",
+        coverageCategoryCount: Object.keys(session.coverage || {}).length
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "deliberate",
+        runKind: session.currentRun?.kind || "start"
+      });
       setRunPhase(session.currentRun, "deliberate", "分析第一轮应该从哪个主题切入，以及是否需要搜索。");
       publishSessionSnapshot(session);
       session.currentRun.debug.deliberation = buildInterviewDecision({
@@ -1202,7 +1341,15 @@ async function processStartRun(sessionId) {
       recordRunStrategy(session.currentRun, "deliberate", session.currentRun.debug.deliberation._providerMeta);
       session.currentRun.debug.deliberation.modelStrategy = buildModelStrategyInfo(session.currentRun.debug.deliberation._providerMeta);
       publishSessionSnapshot(session);
+      phaseSpan.end({
+        phase: "deliberate",
+        shouldSearch: Boolean(session.currentRun.debug.deliberation.shouldSearch)
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "decide",
+        runKind: session.currentRun?.kind || "start"
+      });
       setRunPhase(session.currentRun, "decide", "决定初始动作、线程模式和搜索策略。");
       const decision = {
         action: "ask_new_question",
@@ -1218,7 +1365,16 @@ async function processStartRun(sessionId) {
       };
       session.currentRun.debug.decision = decision;
       publishSessionSnapshot(session);
+      phaseSpan.end({
+        phase: "decide",
+        action: decision.action,
+        shouldSearch: decision.shouldSearch
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "execute",
+        runKind: session.currentRun?.kind || "start"
+      });
       setRunPhase(session.currentRun, "execute", decision.shouldSearch ? "生成问题前启用联网搜索。" : "直接生成第一道问题。");
       publishSessionSnapshot(session);
       applyDecisionStageTarget(session, decision);
@@ -1228,7 +1384,8 @@ async function processStartRun(sessionId) {
         stage,
         normalizedResume: normalized,
         enableWebSearch: decision.shouldSearch,
-        decision
+        decision,
+        logContext: buildSessionLogContext(session)
       });
       recordRunStrategy(session.currentRun, "execute", question._providerMeta);
       applyQuestionDecisionContext(question, decision, stage);
@@ -1243,19 +1400,45 @@ async function processStartRun(sessionId) {
         question,
         modelStrategy: buildModelStrategyInfo(question._providerMeta)
       };
+      phaseSpan.end({
+        phase: "execute",
+        threadId: thread.id,
+        topicId: question.topicId || null
+      });
 
       session.status = "active";
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "feedback",
+        runKind: session.currentRun?.kind || "start"
+      });
       setRunPhase(session.currentRun, "feedback", "写回会话状态并等待候选人回答。");
       session.currentRun.debug.feedback = {
         summary: "启动轮已完成，当前等待候选人作答。"
       };
       completeRun(session.currentRun);
-      await persistSession(session);
+      phaseSpan.end({
+        phase: "feedback",
+        status: session.status
+      });
+      await persistSession(session, buildSessionLogContext(session));
+      logger.info("run.completed", {
+        runKind: session.currentRun?.kind || "start",
+        durationMs: session.currentRun?.durationMs || 0,
+        status: session.status
+      });
       schedulePlanRefresh(session.id);
     } catch (error) {
+      phaseSpan?.fail(error, {
+        phase: session.currentRun?.phase || "unknown",
+        runKind: session.currentRun?.kind || "start"
+      });
       session.status = "failed";
       failRun(session.currentRun, error);
-      await persistSession(session);
+      await persistSession(session, buildSessionLogContext(session));
+      logger.error("run.failed", error, {
+        runKind: session.currentRun?.kind || "start",
+        durationMs: session.currentRun?.durationMs || 0
+      });
     }
   });
 }
@@ -1266,11 +1449,24 @@ async function processAnswerRun(sessionId, turnIndex) {
   await runSessionLifecycle(sessionId, async () => {
     const [{ normalized }, session] = await Promise.all([
       loadResumePackage(),
-      loadSession(sessionId)
+      loadSession(sessionId, buildSessionLogContext(sessionId, { turnIndex }))
     ]);
     const turn = session.turns.find((item) => item.index === turnIndex);
+    const logger = createSessionLogger(session, {
+      turnIndex
+    });
+    let phaseSpan = null;
 
     try {
+      logger.info("run.started", {
+        runKind: session.currentRun?.kind || "answer"
+      });
+
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "observe",
+        runKind: session.currentRun?.kind || "answer",
+        turnIndex
+      });
       syncPlanAndGraph(session, normalized);
       recomputeDerivedState(session);
       setRunPhase(session.currentRun, "observe", "分析用户回答、当前线程和覆盖情况。");
@@ -1279,7 +1475,11 @@ async function processAnswerRun(sessionId, turnIndex) {
         session,
         stage: getCurrentStage(session),
         question: turn.question,
-        answer: turn.answer
+        answer: turn.answer,
+        logContext: buildSessionLogContext(session, {
+          turnIndex,
+          threadId: turn.threadId || undefined
+        })
       });
       recordRunStrategy(session.currentRun, "observe", assessment._providerMeta);
       turn.assessment = assessment;
@@ -1291,7 +1491,17 @@ async function processAnswerRun(sessionId, turnIndex) {
       };
       recomputeDerivedState(session);
       publishSessionSnapshot(session);
+      phaseSpan.end({
+        phase: "observe",
+        score: assessment.score,
+        followupNeeded: Boolean(assessment.followupNeeded)
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "deliberate",
+        runKind: session.currentRun?.kind || "answer",
+        turnIndex
+      });
       setRunPhase(session.currentRun, "deliberate", "判断是继续追问、切换主题、联网搜索还是结束面试。");
       publishSessionSnapshot(session);
       session.currentRun.debug.deliberation = buildInterviewDecision({
@@ -1304,7 +1514,17 @@ async function processAnswerRun(sessionId, turnIndex) {
       recordRunStrategy(session.currentRun, "deliberate", session.currentRun.debug.deliberation._providerMeta);
       session.currentRun.debug.deliberation.modelStrategy = buildModelStrategyInfo(session.currentRun.debug.deliberation._providerMeta);
       publishSessionSnapshot(session);
+      phaseSpan.end({
+        phase: "deliberate",
+        action: session.currentRun.debug.deliberation.action,
+        shouldSearch: Boolean(session.currentRun.debug.deliberation.shouldSearch)
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "decide",
+        runKind: session.currentRun?.kind || "answer",
+        turnIndex
+      });
       setRunPhase(session.currentRun, "decide", "提交下一步动作。");
       const decision = {
         action: session.currentRun.debug.deliberation.action,
@@ -1320,7 +1540,17 @@ async function processAnswerRun(sessionId, turnIndex) {
       };
       session.currentRun.debug.decision = decision;
       publishSessionSnapshot(session);
+      phaseSpan.end({
+        phase: "decide",
+        action: decision.action,
+        shouldSearch: decision.shouldSearch
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "execute",
+        runKind: session.currentRun?.kind || "answer",
+        turnIndex
+      });
       setRunPhase(session.currentRun, "execute", decision.action === "end_interview" ? "生成最终复盘报告。" : "根据决策生成下一步问题。");
       publishSessionSnapshot(session);
 
@@ -1343,7 +1573,11 @@ async function processAnswerRun(sessionId, turnIndex) {
           stage,
           normalizedResume: normalized,
           enableWebSearch: decision.shouldSearch,
-          decision
+          decision,
+          logContext: buildSessionLogContext(session, {
+            turnIndex,
+            threadId: decision.threadId || turn.threadId || undefined
+          })
         });
         recordRunStrategy(session.currentRun, "execute", question._providerMeta);
         applyQuestionDecisionContext(question, decision, stage);
@@ -1359,7 +1593,17 @@ async function processAnswerRun(sessionId, turnIndex) {
           question
         };
       }
+      phaseSpan.end({
+        phase: "execute",
+        action: decision.action,
+        status: session.status
+      });
 
+      phaseSpan = logger.startSpan("run.phase", {
+        phase: "feedback",
+        runKind: session.currentRun?.kind || "answer",
+        turnIndex
+      });
       setRunPhase(session.currentRun, "feedback", "回写线程状态、覆盖率和回合结果。");
       turn.processing = false;
       finalizeThreadAfterAnswer(session, turn, session.currentRun.debug.decision);
@@ -1381,18 +1625,37 @@ async function processAnswerRun(sessionId, turnIndex) {
           : "本轮处理结束，等待候选人回答下一题。"
       };
       completeRun(session.currentRun);
-      await persistSession(session);
+      phaseSpan.end({
+        phase: "feedback",
+        status: session.status
+      });
+      await persistSession(session, buildSessionLogContext(session, { turnIndex }));
+      logger.info("run.completed", {
+        runKind: session.currentRun?.kind || "answer",
+        durationMs: session.currentRun?.durationMs || 0,
+        status: session.status
+      });
       scheduleThreadSummaryRefresh(session.id, turn.threadId);
       if (session.status === "completed") {
         scheduleReportRefresh(session.id);
       }
     } catch (error) {
+      phaseSpan?.fail(error, {
+        phase: session.currentRun?.phase || "unknown",
+        runKind: session.currentRun?.kind || "answer",
+        turnIndex
+      });
       session.status = "failed";
       if (turn) {
         turn.processing = false;
       }
       failRun(session.currentRun, error);
-      await persistSession(session);
+      await persistSession(session, buildSessionLogContext(session, { turnIndex }));
+      logger.error("run.failed", error, {
+        runKind: session.currentRun?.kind || "answer",
+        durationMs: session.currentRun?.durationMs || 0,
+        turnIndex
+      });
     }
   });
 }
@@ -1497,7 +1760,14 @@ export async function createInterviewSession({ roleId, jobId, notes = "", enable
   };
 
   recomputeDerivedState(session);
-  await persistSession(session);
+  const logger = createSessionLogger(session);
+  logger.info("session.created", {
+    roleId: resolvedRoleId,
+    catalogJobId: resolvedJobId,
+    enableWebSearch: Boolean(enableWebSearch),
+    hasTemplate: Boolean(resolvedTemplate)
+  });
+  await persistSession(session, buildSessionLogContext(session));
   void processStartRun(session.id);
   return buildPublicSession(session);
 }
@@ -1507,7 +1777,7 @@ export async function getInterviewSession(sessionId) {
 }
 
 export async function answerInterviewQuestion(sessionId, answer) {
-  const session = await loadSession(sessionId);
+  const session = await loadSession(sessionId, buildSessionLogContext(sessionId));
 
   if (session.status === "processing") {
     throw new Error("Session is still processing the previous round.");
@@ -1535,7 +1805,17 @@ export async function answerInterviewQuestion(sessionId, answer) {
   });
 
   recomputeDerivedState(session);
-  await persistSession(session);
+  createSessionLogger(session, {
+    turnIndex: pendingTurn.index,
+    threadId: pendingTurn.threadId || undefined
+  }).info("answer.accepted", {
+    answerChars: String(answer || "").length,
+    turnIndex: pendingTurn.index
+  });
+  await persistSession(session, buildSessionLogContext(session, {
+    turnIndex: pendingTurn.index,
+    threadId: pendingTurn.threadId || undefined
+  }));
   void processAnswerRun(session.id, pendingTurn.index);
   return buildPublicSession(session);
 }

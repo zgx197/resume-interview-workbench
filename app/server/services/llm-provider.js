@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { createLogger } from "../lib/logger.js";
 import {
   createFallbackAssessment,
   createFallbackPlan,
@@ -7,6 +8,7 @@ import {
 } from "./fallback-interviewer.js";
 
 const MOONSHOT_REQUEST_TIMEOUT_MS = 45000;
+const providerLogger = createLogger({ component: "llm-provider" });
 
 // 所有模型接入都集中在这里处理，
 // 上层只需要面对归一化后的 JSON 结果和模型元信息。
@@ -39,6 +41,16 @@ function withProviderMeta(result, meta) {
     ...result,
     _providerMeta: buildProviderMeta(meta)
   };
+}
+
+function previewText(value, maxLength = 160) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function buildProviderLogContext(logContext = {}) {
+  return Object.fromEntries(
+    Object.entries(logContext || {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
 }
 
 // 不同 phase 使用不同的运行参数。
@@ -235,7 +247,8 @@ async function fetchWithTimeout(url, options, timeoutMs = MOONSHOT_REQUEST_TIMEO
   }
 }
 
-async function runMoonshotConversation({ instructions, input, enableWebSearch, purpose }) {
+async function runMoonshotConversation({ instructions, input, enableWebSearch, purpose, logContext = {} }) {
+  const logger = providerLogger.child(buildProviderLogContext(logContext));
   let messages = [
     {
       role: "system",
@@ -259,63 +272,140 @@ async function runMoonshotConversation({ instructions, input, enableWebSearch, p
   // 模型提供方可能先返回搜索工具调用，再返回最终 JSON。
   // 这里会把工具调用结果回灌到对话里，完成第二轮生成。
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const response = await fetchWithTimeout(`${config.moonshotBaseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.moonshotApiKey}`
-      },
-      body: JSON.stringify(buildMoonshotRequestBody({
-        messages,
-        enableTools: currentEnableTools,
-        forceThinkingDisabled,
-        strategy
-      }))
+    const requestBody = buildMoonshotRequestBody({
+      messages,
+      enableTools: currentEnableTools,
+      forceThinkingDisabled,
+      strategy
+    });
+    const serializedBody = JSON.stringify(requestBody);
+    const attemptSpan = logger.startSpan("provider.chat", {
+      purpose,
+      attempt: attempt + 1,
+      model: config.moonshotModel,
+      enableWebSearch: Boolean(enableWebSearch),
+      toolMode: Boolean(requestBody.tools?.length),
+      thinkingType: requestBody.thinking?.type || "disabled",
+      messageCount: messages.length,
+      requestBytes: Buffer.byteLength(serializedBody, "utf8")
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Moonshot API request failed with ${response.status}: ${errorText}`);
-    }
-
-    const responseJson = await response.json();
-
-    const message = responseJson.choices?.[0]?.message;
-    lastMessage = message;
-
-    if (message?.tool_calls?.length) {
-      messages = [
-        ...messages,
-        {
-          role: "assistant",
-          content: message.content || "",
-          tool_calls: message.tool_calls
+    try {
+      const response = await fetchWithTimeout(`${config.moonshotBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.moonshotApiKey}`
         },
-        ...message.tool_calls.map(buildToolMessage)
-      ];
-      currentEnableTools = false;
-      forceThinkingDisabled = true;
-      continue;
-    }
+        body: serializedBody
+      });
+      const responseText = await response.text();
+      const responseBytes = Buffer.byteLength(responseText, "utf8");
 
-    return message;
+      if (!response.ok) {
+        const error = new Error(`Moonshot API request failed with ${response.status}: ${responseText}`);
+        error.code = `HTTP_${response.status}`;
+        throw Object.assign(error, {
+          statusCode: response.status,
+          responseBytes
+        });
+      }
+
+      const responseJson = JSON.parse(responseText);
+      const message = responseJson.choices?.[0]?.message;
+      lastMessage = message;
+
+      if (message?.tool_calls?.length) {
+        logger.info("provider.tool_call.completed", {
+          purpose,
+          attempt: attempt + 1,
+          toolCallsCount: message.tool_calls.length,
+          toolNames: message.tool_calls.map((toolCall) => toolCall.function?.name || "unknown")
+        });
+        attemptSpan.end({
+          purpose,
+          attempt: attempt + 1,
+          statusCode: response.status,
+          responseBytes,
+          toolCallsCount: message.tool_calls.length
+        });
+
+        messages = [
+          ...messages,
+          {
+            role: "assistant",
+            content: message.content || "",
+            tool_calls: message.tool_calls
+          },
+          ...message.tool_calls.map(buildToolMessage)
+        ];
+        currentEnableTools = false;
+        forceThinkingDisabled = true;
+        continue;
+      }
+
+      attemptSpan.end({
+        purpose,
+        attempt: attempt + 1,
+        statusCode: response.status,
+        responseBytes,
+        toolCallsCount: 0,
+        contentChars: String(message?.content || "").length
+      });
+      return message;
+    } catch (error) {
+      attemptSpan.fail(error, {
+        purpose,
+        attempt: attempt + 1
+      });
+      throw error;
+    }
   }
 
   return lastMessage;
 }
 
-async function generateJson({ instructions, input, fallbackFactory, enableWebSearch = false, normalizeResult = (value) => value, purpose = "default" }) {
+async function generateJson({
+  instructions,
+  input,
+  fallbackFactory,
+  enableWebSearch = false,
+  normalizeResult = (value) => value,
+  purpose = "default",
+  logContext = {}
+}) {
+  const logger = providerLogger.child(buildProviderLogContext(logContext));
   const strategy = getPhaseModelStrategy(purpose);
+  const span = logger.startSpan("provider.generate_json", {
+    purpose,
+    enableWebSearch: Boolean(enableWebSearch),
+    model: config.aiProvider === "moonshot" ? config.moonshotModel : "fallback",
+    thinkingType: enableWebSearch ? "disabled" : strategy.thinkingType,
+    toolMode: Boolean(enableWebSearch),
+    inputChars: String(input || "").length,
+    inputPreview: config.logPayloadMode === "summary" ? previewText(input) : undefined
+  });
 
   // 兜底路径是正式运行路径的一部分，而不只是异常时的补救逻辑。
   if (config.aiProvider !== "moonshot" || !config.moonshotApiKey) {
-    return withProviderMeta(fallbackFactory(), {
+    logger.warn("provider.fallback.used", {
+      purpose,
+      reason: "provider_unavailable",
+      provider: config.aiProvider
+    });
+    const fallbackResult = withProviderMeta(fallbackFactory(), {
       provider: "fallback",
       model: "fallback",
       purpose,
       thinkingType: "disabled",
       toolMode: Boolean(enableWebSearch)
     });
+    span.end({
+      purpose,
+      fallbackUsed: true,
+      fallbackReason: "provider_unavailable"
+    });
+    return fallbackResult;
   }
 
   try {
@@ -323,34 +413,63 @@ async function generateJson({ instructions, input, fallbackFactory, enableWebSea
       instructions,
       input,
       enableWebSearch,
-      purpose
+      purpose,
+      logContext
     });
 
     const parsed = tryParseJson(message?.content || "");
     if (!parsed) {
-      return withProviderMeta(fallbackFactory(), {
+      logger.warn("provider.fallback.used", {
+        purpose,
+        reason: "invalid_json",
+        contentPreview: previewText(message?.content || "")
+      });
+      const fallbackResult = withProviderMeta(fallbackFactory(), {
         provider: "fallback",
         model: "fallback",
         purpose,
         thinkingType: "disabled",
         toolMode: Boolean(enableWebSearch)
       });
+      span.end({
+        purpose,
+        fallbackUsed: true,
+        fallbackReason: "invalid_json"
+      });
+      return fallbackResult;
     }
-    return withProviderMeta(normalizeResult(parsed), {
+
+    const normalizedResult = withProviderMeta(normalizeResult(parsed), {
       provider: "moonshot",
       model: config.moonshotModel,
       purpose,
       thinkingType: enableWebSearch ? "disabled" : strategy.thinkingType,
       toolMode: Boolean(enableWebSearch)
     });
-  } catch {
-    return withProviderMeta(fallbackFactory(), {
+    span.end({
+      purpose,
+      fallbackUsed: false,
+      provider: "moonshot"
+    });
+    return normalizedResult;
+  } catch (error) {
+    logger.warn("provider.fallback.used", error, {
+      purpose,
+      reason: "provider_exception"
+    });
+    const fallbackResult = withProviderMeta(fallbackFactory(), {
       provider: "fallback",
       model: "fallback",
       purpose,
       thinkingType: "disabled",
       toolMode: Boolean(enableWebSearch)
     });
+    span.end({
+      purpose,
+      fallbackUsed: true,
+      fallbackReason: "provider_exception"
+    });
+    return fallbackResult;
   }
 }
 
@@ -379,7 +498,8 @@ export async function buildInterviewPlan(context) {
     fallbackFactory: () => createFallbackPlan(context),
     enableWebSearch,
     normalizeResult: normalizePlanResult,
-    purpose: "plan"
+    purpose: "plan",
+    logContext: context.logContext
   });
 }
 
@@ -412,7 +532,8 @@ export async function generateInterviewQuestion(context) {
     fallbackFactory: () => createFallbackQuestion(context),
     enableWebSearch,
     normalizeResult: normalizeQuestionResult,
-    purpose: "question"
+    purpose: "question",
+    logContext: context.logContext
   });
 }
 
@@ -432,7 +553,8 @@ export async function assessInterviewAnswer(context) {
     }),
     fallbackFactory: () => createFallbackAssessment(context),
     normalizeResult: normalizeAssessmentResult,
-    purpose: "assessment"
+    purpose: "assessment",
+    logContext: context.logContext
   });
 }
 
@@ -461,7 +583,11 @@ export async function generateInterviewReport(session) {
     }),
     fallbackFactory: () => fallbackReport,
     normalizeResult: normalizeReportResult,
-    purpose: "report"
+    purpose: "report",
+    logContext: {
+      sessionId: session.id,
+      runId: session.currentRun?.id || null
+    }
   });
   return enrichReportResult(report, fallbackReport);
 }

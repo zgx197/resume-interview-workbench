@@ -2,9 +2,23 @@ import http from "node:http";
 import { config } from "./config.js";
 import { loadEnvFile } from "./env.js";
 import { readRequestJson, sendError, sendJson, sendStaticFile } from "./lib/http.js";
+import { createLogger } from "./lib/logger.js";
 import { answerInterviewQuestion, createInterviewSession, getBootstrapData, getInterviewSession, resumePendingSessions } from "./services/interview-service.js";
+import { getObservabilityOverview, getSessionObservabilitySummary } from "./services/log-observability.js";
 import { subscribeSession } from "./services/session-events.js";
 import { deleteInterviewTemplate, listInterviewTemplates, saveInterviewTemplate } from "./services/template-service.js";
+
+const serverLogger = createLogger({ component: "server" });
+
+function readPositiveInt(searchParams, key, fallback) {
+  const raw = searchParams.get(key);
+  if (!raw) {
+    return fallback;
+  }
+
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
 
 // HTTP 入口故意保持很薄：这里只做路由分发，
 // 真正的状态流转、持久化和面试逻辑都在 service 层。
@@ -18,6 +32,28 @@ function sendSseEvent(res, event, payload) {
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/bootstrap") {
     sendJson(res, 200, await getBootstrapData());
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/debug/logs/summary") {
+    sendJson(res, 200, await getObservabilityOverview({
+      limit: readPositiveInt(url.searchParams, "limit", 20),
+      fileLimit: readPositiveInt(url.searchParams, "fileLimit", 3),
+      lineLimitPerFile: readPositiveInt(url.searchParams, "lineLimitPerFile", 3000)
+    }));
+    return true;
+  }
+
+  const debugSessionMatch = url.pathname.match(/^\/api\/debug\/logs\/sessions\/([^/]+)$/);
+  if (debugSessionMatch && req.method === "GET") {
+    sendJson(res, 200, await getSessionObservabilitySummary(debugSessionMatch[1], {
+      timelineLimit: readPositiveInt(url.searchParams, "timelineLimit", 60),
+      providerLimit: readPositiveInt(url.searchParams, "providerLimit", 20),
+      slowLimit: readPositiveInt(url.searchParams, "slowLimit", 20),
+      jobLimit: readPositiveInt(url.searchParams, "jobLimit", 20),
+      fileLimit: readPositiveInt(url.searchParams, "fileLimit", 3),
+      lineLimitPerFile: readPositiveInt(url.searchParams, "lineLimitPerFile", 3000)
+    }));
     return true;
   }
 
@@ -92,8 +128,10 @@ async function handleApi(req, res, url) {
 }
 
 async function requestHandler(req, res) {
+  let pathname = req.url || "";
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    pathname = url.pathname;
 
     if (url.pathname.startsWith("/api/")) {
       const handled = await handleApi(req, res, url);
@@ -106,6 +144,11 @@ async function requestHandler(req, res) {
     const assetPath = url.pathname === "/" ? "/index.html" : url.pathname;
     await sendStaticFile(res, config.webDir, assetPath);
   } catch (error) {
+    serverLogger.error("http.request.failed", error, {
+      method: req.method,
+      pathname
+    });
+
     if (error.code === "ENOENT") {
       sendError(res, 404, "File not found.");
       return;
@@ -123,14 +166,21 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(config.port, () => {
-  console.log(`resume-interview-workbench listening on http://localhost:${config.port}`);
+  serverLogger.info("server.started", {
+    port: config.port,
+    url: `http://localhost:${config.port}`,
+    logLevel: config.logLevel,
+    logFormat: config.logFormat,
+    logDir: config.logDir,
+    fileLoggingEnabled: config.logEnableFile
+  });
+
+  const resumeSpan = serverLogger.startSpan("server.resume_pending_sessions");
   resumePendingSessions()
     .then((count) => {
-      if (count > 0) {
-        console.log(`resumed ${count} pending session(s)`);
-      }
+      resumeSpan.end({ resumedCount: count });
     })
     .catch((error) => {
-      console.error(`failed to resume pending sessions: ${error.message}`);
+      resumeSpan.fail(error);
     });
 });
