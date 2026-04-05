@@ -698,6 +698,19 @@ button:disabled {
   gap: 10px;
 }
 
+.background-job-card {
+  display: grid;
+  gap: 12px;
+}
+
+.background-job-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.background-job-error {
+  margin-top: 2px;
+}
+
 .dialogue-bubble {
   position: relative;
   padding: 14px 16px;
@@ -796,6 +809,7 @@ button:disabled {
 .conversation.empty-state,
 .plan-list.empty-state,
 #report-panel.empty-state,
+#background-jobs-panel.empty-state,
 .template-meta.empty-state {
   border-radius: var(--radius-lg);
   border: 1px dashed var(--border);

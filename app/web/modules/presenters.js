@@ -1,4 +1,9 @@
-import { SESSION_STATUS_LABELS, THREAD_STATUS_LABELS, TOPIC_LABELS } from "./constants.js";
+import {
+  SESSION_STATUS_LABELS,
+  THREAD_STATUS_LABELS,
+  TOPIC_LABELS,
+  TOPIC_NODE_STATUS_LABELS
+} from "./constants.js";
 import { escapeHtml, formatDateTime, renderInlineMarkdown, renderMarkdown } from "./utils.js";
 
 // presenter 负责把原始 session 数据转成更适合界面展示的标签和片段。
@@ -14,8 +19,11 @@ export function threadStatusLabel(status) {
   return THREAD_STATUS_LABELS[status] || status || "未知";
 }
 
-// 当前线程优先取显式 currentThreadId；
-// 没有时再回退到 active/last thread，保证调试面板始终有内容。
+export function topicNodeStatusLabel(status) {
+  return TOPIC_NODE_STATUS_LABELS[status] || status || "未知";
+}
+
+// 当前线程优先取显式 currentThreadId，没有时再回退到 active / last thread。
 export function findCurrentThread(session) {
   if (!session) {
     return null;
@@ -23,6 +31,30 @@ export function findCurrentThread(session) {
   return session.topicThreads?.find((thread) => thread.id === session.currentThreadId)
     || session.topicThreads?.find((thread) => thread.status === "active")
     || session.topicThreads?.at(-1)
+    || null;
+}
+
+export function findTopicNode(session, topicId) {
+  if (!session || !topicId) {
+    return null;
+  }
+  return session.topicGraph?.nodes?.find((node) => node.id === topicId) || null;
+}
+
+export function findCurrentTopicNode(session) {
+  const questionTopicId = session?.nextQuestion?.topicId;
+  if (questionTopicId) {
+    return findTopicNode(session, questionTopicId);
+  }
+
+  const thread = findCurrentThread(session);
+  if (thread?.topicId) {
+    return findTopicNode(session, thread.topicId);
+  }
+
+  return session?.topicGraph?.nodes?.find((node) => node.status === "active")
+    || session?.topicGraph?.nodes?.find((node) => node.covered)
+    || session?.topicGraph?.nodes?.find((node) => node.plannedCount > 0)
     || null;
 }
 
@@ -88,7 +120,7 @@ export function buildSessionModeLabel(session) {
     return "待开始";
   }
   const searchLabel = session.enableWebSearch ? "联网" : "离线";
-  return `${sessionStatusLabel(session.status)} · ${searchLabel}`;
+  return `${sessionStatusLabel(session.status)} 路 ${searchLabel}`;
 }
 
 export function buildTemplateMeta(template) {

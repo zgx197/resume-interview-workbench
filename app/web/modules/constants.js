@@ -27,3 +27,10 @@ export const THREAD_STATUS_LABELS = {
   active: "进行中",
   closed: "已关闭"
 };
+
+export const TOPIC_NODE_STATUS_LABELS = {
+  active: "聚焦中",
+  covered: "已覆盖",
+  planned: "待覆盖",
+  idle: "未纳入"
+};

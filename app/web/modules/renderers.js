@@ -5,7 +5,8 @@ import {
   findCurrentThread,
   renderAssessmentDetails,
   sessionStatusLabel,
-  topicLabel
+  topicLabel,
+  topicNodeStatusLabel
 } from "./presenters.js";
 import { state } from "./state.js";
 import { createBlankTemplate, fillTemplateForm, renderTemplatePicker, sortTemplates } from "./templates.js";
@@ -17,8 +18,35 @@ import {
   renderPill
 } from "./utils.js";
 
-// renderers.js 负责所有面向产品界面的 DOM 输出，
-// 故意把写 DOM 的动作集中，保证 session 更新行为可预测。
+const BACKGROUND_JOB_STATUS_LABELS = {
+  pending: "排队中",
+  running: "执行中",
+  failed: "已失败",
+  completed: "已完成",
+  idle: "未启动"
+};
+
+const BACKGROUND_JOB_KIND_LABELS = {
+  plan_refresh: "计划刷新",
+  report: "复盘生成",
+  thread_summary: "线程摘要"
+};
+
+const BACKGROUND_JOB_SCOPE_LABELS = {
+  session: "会话级",
+  thread: "话题级"
+};
+
+const BACKGROUND_JOB_STATUS_PRIORITY = {
+  running: 0,
+  pending: 1,
+  failed: 2,
+  idle: 3,
+  completed: 4
+};
+
+// renderers.js 负责所有面向产品界面的 DOM 输出。
+// 故意把写 DOM 的动作集中起来，保证 session 更新行为可预期。
 function updateShellSummary() {
   if (elements.candidateYears) {
     const years = state.bootstrap?.candidate?.profile?.estimatedYearsExperience;
@@ -42,8 +70,8 @@ function updateShellSummary() {
 export function renderBootstrap() {
   const { candidate, roles, jobs, provider } = state.bootstrap;
   elements.providerBadge.textContent = provider.configured
-    ? `Provider · ${provider.mode}`
-    : "Provider · fallback only";
+    ? `Provider 路 ${provider.mode}`
+    : "Provider 路 fallback only";
   elements.candidateName.textContent = candidate.profile.name || "未命名候选人";
   elements.candidateRole.textContent = candidate.profile.role || "暂无岗位信息";
   elements.candidateSummary.innerHTML = (candidate.summaryPoints || [])
@@ -81,7 +109,7 @@ function renderPlan() {
       const bucket = coverage[stage.category] || {};
       const isCurrent = index === state.session.stageIndex;
       const topics = (stage.targetTopics || []).slice(0, 4).map((topic) => topic.label);
-      const avgScore = bucket.averageScore ? `均分 ${bucket.averageScore}` : "未评分";
+      const avgScore = bucket.averageScore ? `均分 ${bucket.averageScore}` : "未评估";
 
       return `
         <details class="fold-card plan-card ${isCurrent ? "is-current" : ""}" ${isCurrent ? "open" : ""}>
@@ -138,7 +166,7 @@ function renderConversation() {
         <header class="turn-header">
           <div>
             <p class="turn-role">Round ${escapeHtml(turn.index)}</p>
-            <h3 class="card-title">${escapeHtml(thread?.label || topicLabel(turn.question.topicCategory))}</h3>
+            <h3 class="card-title">${escapeHtml(thread?.label || turn.question.topicLabel || topicLabel(turn.question.topicCategory))}</h3>
           </div>
           <div class="summary-badges">
             ${renderPill(topicLabel(turn.question.topicCategory))}
@@ -189,7 +217,7 @@ function renderConversation() {
         <header class="turn-header">
           <div>
             <p class="turn-role">Current Question</p>
-            <h3 class="card-title">${escapeHtml(thread?.label || topicLabel(state.session.nextQuestion.topicCategory))}</h3>
+            <h3 class="card-title">${escapeHtml(thread?.label || state.session.nextQuestion.topicLabel || topicLabel(state.session.nextQuestion.topicCategory))}</h3>
           </div>
           <div class="summary-badges">
             ${renderPill(state.session.nextQuestion._providerMeta?.strategyLabel || "question")}
@@ -239,9 +267,153 @@ function renderConversation() {
   elements.conversation.innerHTML = cards.length ? cards.join("") : "暂无对话。";
 }
 
-function renderReport() {
+function renderReportJobCard(job) {
+  const statusLabels = {
+    pending: "排队中",
+    running: "生成中",
+    failed: "生成失败",
+    completed: "已完成",
+    idle: "未启动"
+  };
+  const status = job?.status || "idle";
+
+  return `
+    <article class="report-card">
+      <p class="card-kicker">Report Job</p>
+      <div class="turn-header">
+        <div>
+          <h3 class="card-title">复盘生成状态</h3>
+          <p class="summary-copy">${escapeHtml(
+            status === "failed"
+              ? "后台生成未完成，本次结果暂时不可用。"
+              : "面试已结束，完整复盘会在后台生成完成后自动回填。"
+          )}</p>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(statusLabels[status] || status, status === "running" ? "accent" : "")}
+        </div>
+      </div>
+      <div class="metric-grid compact">
+        <div class="metric-tile">
+          <span class="metric-label">状态</span>
+          <strong>${escapeHtml(statusLabels[status] || status)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">尝试次数</span>
+          <strong>${escapeHtml(job?.attempts ?? 0)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">任务类型</span>
+          <strong>${escapeHtml(job?.kind || "report")}</strong>
+        </div>
+      </div>
+      <div class="markdown-block subtle">${renderMarkdown(
+        job?.error
+          ? `- 错误：${job.error}`
+          : (status === "pending" || status === "running"
+            ? "- 正在等待后台任务完成。"
+            : "- 当前还没有可展示的复盘内容。")
+      )}</div>
+    </article>
+  `;
+}
+
+function compareBackgroundJobs(left, right) {
+  const leftPriority = BACKGROUND_JOB_STATUS_PRIORITY[left?.status] ?? 99;
+  const rightPriority = BACKGROUND_JOB_STATUS_PRIORITY[right?.status] ?? 99;
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority;
+  }
+
+  const leftLabel = left?.targetLabel || "";
+  const rightLabel = right?.targetLabel || "";
+  return leftLabel.localeCompare(rightLabel, "zh-CN");
+}
+
+function renderBackgroundJobCard(job) {
+  const status = job?.status || "idle";
+  const statusLabel = BACKGROUND_JOB_STATUS_LABELS[status] || status;
+  const kindLabel = BACKGROUND_JOB_KIND_LABELS[job?.kind] || job?.kind || "后台任务";
+  const scopeLabel = BACKGROUND_JOB_SCOPE_LABELS[job?.scope] || job?.scope || "未知";
+  const targetLabel = job?.targetLabel || kindLabel;
+
+  return `
+    <article class="report-card background-job-card">
+      <div class="turn-header">
+        <div>
+          <p class="card-kicker">${escapeHtml(kindLabel)}</p>
+          <h3 class="card-title">${escapeHtml(targetLabel)}</h3>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(statusLabel, status === "pending" || status === "running" ? "accent" : "")}
+        </div>
+      </div>
+      <div class="metric-grid compact background-job-metrics">
+        <div class="metric-tile">
+          <span class="metric-label">作用域</span>
+          <strong>${escapeHtml(scopeLabel)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">尝试次数</span>
+          <strong>${escapeHtml(job?.attempts ?? 0)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">状态</span>
+          <strong>${escapeHtml(statusLabel)}</strong>
+        </div>
+      </div>
+      <div class="turn-meta ${job?.error ? "emphasis" : ""}">
+        <span>${escapeHtml(job?.kind || "job")}</span>
+        <span>${escapeHtml(job?.id || "未生成 ID")}</span>
+      </div>
+      ${job?.error
+        ? `<div class="markdown-block subtle background-job-error">${renderMarkdown(`- 错误：${job.error}`)}</div>`
+        : ""}
+    </article>
+  `;
+}
+
+// 后台冷路径任务统一从 backgroundJobs 读取并展示，
+// 这样计划刷新、复盘生成和线程摘要可以在同一处观察。
+function renderBackgroundJobs() {
+  if (!state.session) {
+    elements.backgroundJobsPanel.className = "empty-state";
+    elements.backgroundJobsPanel.textContent = "开始面试后，这里会统一显示冷路径任务状态。";
+    return;
+  }
+
+  const jobs = [...(state.session.backgroundJobs || [])].sort(compareBackgroundJobs);
+  if (!jobs.length) {
+    elements.backgroundJobsPanel.className = "empty-state";
+    elements.backgroundJobsPanel.textContent = "当前没有需要跟踪的后台任务。";
+    return;
+  }
+
+  elements.backgroundJobsPanel.className = "report-grid";
+  elements.backgroundJobsPanel.innerHTML = jobs.map(renderBackgroundJobCard).join("");
+}
+
+function renderReportLegacy() {
+  const reportJob = state.session?.backgroundJobs?.find((job) => job.kind === "report")
+    || state.session?.reportJob
+    || null;
   if (!state.session?.report) {
     elements.reportPanel.className = "empty-state";
+    const reportJobStatus = reportJob?.status;
+    if (reportJobStatus === "pending" || reportJobStatus === "running") {
+      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
+      return;
+      elements.reportPanel.textContent = "面试已结束，结构化复盘正在后台生成。";
+      return;
+    }
+    if (reportJobStatus === "failed") {
+      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
+      return;
+      elements.reportPanel.textContent = "复盘生成失败，请稍后刷新重试。";
+      return;
+    }
     elements.reportPanel.textContent = "完成面试后，这里会显示结构化复盘。";
     return;
   }
@@ -252,6 +424,30 @@ function renderReport() {
     <article class="report-card">
       <p class="card-kicker">Summary</p>
       <div class="markdown-block">${renderMarkdown(report.summary)}</div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Coverage</p>
+      <div class="metric-grid compact">
+        <div class="metric-tile">
+          <span class="metric-label">计划主题</span>
+          <strong>${escapeHtml(report.coverageSummary?.plannedTopicCount ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">已覆盖主题</span>
+          <strong>${escapeHtml(report.coverageSummary?.coveredTopicCount ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">总轮次</span>
+          <strong>${escapeHtml(report.coverageSummary?.turnCount ?? state.session.turns.length ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">图谱均分</span>
+          <strong>${escapeHtml(report.coverageSummary?.averageTopicScore ?? "--")}</strong>
+        </div>
+      </div>
+      ${report.coverageSummary?.summary
+        ? `<div class="markdown-block subtle">${renderMarkdown(report.coverageSummary.summary)}</div>`
+        : ""}
     </article>
     <article class="report-card">
       <p class="card-kicker">Dimensions</p>
@@ -281,6 +477,182 @@ function renderReport() {
           ? report.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
           : '<li class="muted">暂无</li>'}
       </ul>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Topic Coverage</p>
+      <div class="graph-detail-sections">
+        ${(report.topicCoverage || []).length
+          ? report.topicCoverage.map((item) => `
+              <section class="graph-detail-section">
+                <div class="turn-header">
+                  <div>
+                    <p class="card-kicker">${escapeHtml(topicLabel(item.category))}</p>
+                    <h3 class="card-title">${escapeHtml(item.label)}</h3>
+                  </div>
+                  <div class="summary-badges">
+                    ${renderPill(topicNodeStatusLabel(item.status || "idle"))}
+                    ${renderPill(`问过 ${item.askCount || 0} 次`)}
+                    ${renderPill(`均分 ${item.averageScore ?? "--"}`)}
+                  </div>
+                </div>
+                <div class="chip-wrap">
+                  ${(item.stageTitles || []).length
+                    ? item.stageTitles.map((stageTitle) => `<span class="topic-tag compact">${escapeHtml(stageTitle)}</span>`).join("")
+                    : '<span class="muted">未绑定计划阶段</span>'}
+                </div>
+                <div class="markdown-block subtle">${renderMarkdown((item.evidence || []).map((evidence) => `- ${evidence}`).join("\n"), { empty: "暂无证据摘要" })}</div>
+              </section>
+            `).join("")
+          : '<p class="muted">暂无主题覆盖摘要。</p>'}
+      </div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Evidence Highlights</p>
+      <div class="graph-detail-sections">
+        ${(report.evidenceHighlights || []).length
+          ? report.evidenceHighlights.map((item) => `
+              <section class="graph-detail-section">
+                <div class="turn-meta emphasis">
+                  <span>${escapeHtml(item.topicLabel || "未命名主题")}</span>
+                  <span>${escapeHtml(item.evidenceSource || "暂无证据来源")}</span>
+                  <span>${escapeHtml(item.score ?? "--")} / 5</span>
+                </div>
+                <div class="markdown-block subtle">${renderMarkdown(item.summary, { empty: "暂无摘要" })}</div>
+              </section>
+            `).join("")
+          : '<p class="muted">暂无证据高亮。</p>'}
+      </div>
+    </article>
+  `;
+}
+
+function renderReport() {
+  const reportJob = state.session?.backgroundJobs?.find((job) => job.kind === "report")
+    || state.session?.reportJob
+    || null;
+
+  if (!state.session?.report) {
+    elements.reportPanel.className = "empty-state";
+    const reportJobStatus = reportJob?.status;
+    if (reportJobStatus === "pending" || reportJobStatus === "running") {
+      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
+      return;
+    }
+    if (reportJobStatus === "failed") {
+      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
+      return;
+    }
+
+    elements.reportPanel.textContent = "完成面试后，这里会显示结构化复盘。";
+    return;
+  }
+
+  const report = state.session.report;
+  elements.reportPanel.className = "report-grid";
+  elements.reportPanel.innerHTML = `
+    <article class="report-card">
+      <p class="card-kicker">Summary</p>
+      <div class="markdown-block">${renderMarkdown(report.summary)}</div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Coverage</p>
+      <div class="metric-grid compact">
+        <div class="metric-tile">
+          <span class="metric-label">计划主题</span>
+          <strong>${escapeHtml(report.coverageSummary?.plannedTopicCount ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">已覆盖主题</span>
+          <strong>${escapeHtml(report.coverageSummary?.coveredTopicCount ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">总轮次</span>
+          <strong>${escapeHtml(report.coverageSummary?.turnCount ?? state.session.turns.length ?? "--")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">图谱均分</span>
+          <strong>${escapeHtml(report.coverageSummary?.averageTopicScore ?? "--")}</strong>
+        </div>
+      </div>
+      ${report.coverageSummary?.summary
+        ? `<div class="markdown-block subtle">${renderMarkdown(report.coverageSummary.summary)}</div>`
+        : ""}
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Dimensions</p>
+      <div class="report-dimensions">
+        ${(report.dimensions || []).length
+          ? report.dimensions.map((item) => `
+              <div class="metric-tile">
+                <span class="metric-label">${escapeHtml(topicLabel(item.category))}</span>
+                <strong>${escapeHtml(item.averageScore)}</strong>
+              </div>
+            `).join("")
+          : '<p class="muted">暂无维度评分。</p>'}
+      </div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Strengths</p>
+      <ul class="supporting-list">
+        ${(report.strengths || []).length
+          ? report.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+          : '<li class="muted">暂无</li>'}
+      </ul>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Risks</p>
+      <ul class="supporting-list">
+        ${(report.risks || []).length
+          ? report.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+          : '<li class="muted">暂无</li>'}
+      </ul>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Topic Coverage</p>
+      <div class="graph-detail-sections">
+        ${(report.topicCoverage || []).length
+          ? report.topicCoverage.map((item) => `
+              <section class="graph-detail-section">
+                <div class="turn-header">
+                  <div>
+                    <p class="card-kicker">${escapeHtml(topicLabel(item.category))}</p>
+                    <h3 class="card-title">${escapeHtml(item.label)}</h3>
+                  </div>
+                  <div class="summary-badges">
+                    ${renderPill(topicNodeStatusLabel(item.status || "idle"))}
+                    ${renderPill(`问过 ${item.askCount || 0} 次`)}
+                    ${renderPill(`均分 ${item.averageScore ?? "--"}`)}
+                  </div>
+                </div>
+                <div class="chip-wrap">
+                  ${(item.stageTitles || []).length
+                    ? item.stageTitles.map((stageTitle) => `<span class="topic-tag compact">${escapeHtml(stageTitle)}</span>`).join("")
+                    : '<span class="muted">未绑定计划阶段</span>'}
+                </div>
+                <div class="markdown-block subtle">${renderMarkdown((item.evidence || []).map((evidence) => `- ${evidence}`).join("\n"), { empty: "暂无证据摘要" })}</div>
+              </section>
+            `).join("")
+          : '<p class="muted">暂无主题覆盖摘要。</p>'}
+      </div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Evidence Highlights</p>
+      <div class="graph-detail-sections">
+        ${(report.evidenceHighlights || []).length
+          ? report.evidenceHighlights.map((item) => `
+              <section class="graph-detail-section">
+                <div class="turn-meta emphasis">
+                  <span>${escapeHtml(item.topicLabel || "未命名主题")}</span>
+                  <span>${escapeHtml(item.evidenceSource || "暂无证据来源")}</span>
+                  <span>${escapeHtml(item.score ?? "--")} / 5</span>
+                </div>
+                <div class="markdown-block subtle">${renderMarkdown(item.summary, { empty: "暂无摘要" })}</div>
+              </section>
+            `).join("")
+          : '<p class="muted">暂无证据高亮。</p>'}
+      </div>
     </article>
   `;
 }
@@ -327,6 +699,7 @@ export function renderSession() {
     renderConversation();
     renderRunState();
     renderReport();
+    renderBackgroundJobs();
     syncAnswerControls();
     stopRunClock();
     return;
@@ -339,23 +712,24 @@ export function renderSession() {
     .find((phase) => phase.name === state.session.currentRun?.phase) || null;
 
   elements.sessionTitle.textContent = template
-    ? `${template.companyName} · ${template.jobDirection}`
-    : `${state.session.role.name} · ${state.session.job.title}`;
+    ? `${template.companyName} 路 ${template.jobDirection}`
+    : `${state.session.role.name} 路 ${state.session.job.title}`;
 
   elements.sessionSubtitle.textContent = template
-    ? `${template.interviewerRoleName} · ${state.session.plan?.summary || "暂无计划摘要"}${state.session.enableWebSearch ? " · 已启用联网搜索" : ""}`
-    : `${state.session.plan?.summary || "暂无计划摘要"}${state.session.enableWebSearch ? " · 已启用联网搜索" : ""}`;
+    ? `${template.interviewerRoleName} 路 ${state.session.plan?.summary || "暂无计划摘要"}${state.session.enableWebSearch ? " 路 已启用联网搜索" : ""}`
+    : `${state.session.plan?.summary || "暂无计划摘要"}${state.session.enableWebSearch ? " 路 已启用联网搜索" : ""}`;
 
   elements.stageChip.textContent = activePhase
-    ? `${activePhase.name} · ${formatDuration(getLivePhaseDuration(activePhase, new Date()))}`
+    ? `${activePhase.name} 路 ${formatDuration(getLivePhaseDuration(activePhase, new Date()))}`
     : (stage?.title || sessionStatusLabel(state.session.status));
   elements.turnCounter.textContent = `${state.session.turns.length} / ${state.session.plan?.targetTurnCount || 0}`;
-  elements.runStatus.textContent = `${sessionStatusLabel(state.session.status)}${thread ? ` · ${thread.label}` : ""}`;
+  elements.runStatus.textContent = `${sessionStatusLabel(state.session.status)}${thread ? ` 路 ${thread.label}` : ""}`;
 
   renderPlan();
   renderConversation();
   renderRunState();
   renderReport();
+  renderBackgroundJobs();
   syncAnswerControls();
   ensureRunClock();
   updateShellSummary();

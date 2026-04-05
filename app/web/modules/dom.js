@@ -43,5 +43,6 @@ export const elements = {
   conversation: query("#conversation"),
   answerInput: query("#answer-input"),
   answerButton: query("#answer-button"),
-  reportPanel: query("#report-panel")
+  reportPanel: query("#report-panel"),
+  backgroundJobsPanel: query("#background-jobs-panel")
 };
