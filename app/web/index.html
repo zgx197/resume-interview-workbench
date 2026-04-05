@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
@@ -8,13 +8,31 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <div class="page-orbit orbit-one"></div>
+    <div class="page-orbit orbit-two"></div>
+
     <div class="app-shell">
       <aside class="sidebar">
         <section class="panel brand-panel">
-          <p class="eyebrow">Resume Interview Workbench</p>
-          <h1>AI Interview Studio</h1>
-          <p class="brand-copy">面向简历驱动技术面试的可观测工作台。</p>
-          <div id="provider-badge" class="provider-badge">Loading provider...</div>
+          <div class="brand-topline">
+            <div>
+              <p class="eyebrow">Resume Interview Workbench</p>
+              <h1>AI Interview Studio</h1>
+              <p class="brand-copy">简历驱动的模拟技术面试工作台。</p>
+            </div>
+            <div id="provider-badge" class="provider-badge">Loading provider...</div>
+          </div>
+
+          <div class="brand-stats">
+            <article class="brand-stat">
+              <span>候选经验</span>
+              <strong id="candidate-years">--</strong>
+            </article>
+            <article class="brand-stat">
+              <span>模板数量</span>
+              <strong id="template-count">0</strong>
+            </article>
+          </div>
         </section>
 
         <section class="panel candidate-panel">
@@ -37,7 +55,6 @@
             </div>
             <span id="template-status" class="status-badge neutral">未保存</span>
           </div>
-          <p class="panel-note">普通使用只需填写公司、岗位、介绍和面试官角色。更细的基座配置放在专家模式中。</p>
 
           <div class="template-library">
             <label class="field">
@@ -59,29 +76,31 @@
               <input id="template-name-input" type="text" placeholder="例如：某游戏工作室 U3D 技术负责人面试" />
             </label>
 
-            <label class="field">
-              <span>公司名称</span>
-              <input id="company-name-input" type="text" placeholder="例如：HUNGRY STUDIO" />
-            </label>
+            <div class="dual-field">
+              <label class="field">
+                <span>公司名称</span>
+                <input id="company-name-input" type="text" placeholder="例如：HUNGRY STUDIO" />
+              </label>
+
+              <label class="field">
+                <span>岗位方向</span>
+                <input id="job-direction-input" type="text" placeholder="例如：高级游戏 U3D 开发工程师" />
+              </label>
+            </div>
 
             <label class="field">
               <span>公司介绍</span>
-              <textarea id="company-intro-input" rows="4" placeholder="简要说明公司背景、团队规模、产品线与业务阶段。"></textarea>
-            </label>
-
-            <label class="field">
-              <span>岗位方向</span>
-              <input id="job-direction-input" type="text" placeholder="例如：高级游戏 U3D 开发工程师" />
+              <textarea id="company-intro-input" rows="3" placeholder="简要说明公司背景、团队规模、产品线与业务阶段。"></textarea>
             </label>
 
             <label class="field">
               <span>岗位介绍</span>
-              <textarea id="job-description-input" rows="5" placeholder="填写岗位职责、能力要求和重点考察方向。"></textarea>
+              <textarea id="job-description-input" rows="4" placeholder="填写岗位职责、能力要求和重点考察方向。"></textarea>
             </label>
 
             <label class="field">
               <span>其他内容</span>
-              <textarea id="additional-context-input" rows="4" placeholder="可补充薪资、地点、标签，或你希望重点追问的方向。"></textarea>
+              <textarea id="additional-context-input" rows="3" placeholder="可补充薪资、地点、标签，或你希望重点追问的方向。"></textarea>
             </label>
 
             <label class="field">
@@ -92,7 +111,6 @@
 
           <details class="advanced-panel">
             <summary>专家模式：调整模板基座</summary>
-            <p class="panel-note">只有需要微调面试风格和能力覆盖时，才需要展开这里。</p>
             <label class="field">
               <span>面试官风格基座</span>
               <select id="role-select"></select>
@@ -132,7 +150,20 @@
             <h2 id="session-title">尚未开始</h2>
             <p id="session-subtitle" class="hero-subtitle">先选择模板或创建一个新的面试模板，再启动面试。</p>
           </div>
-          <div id="stage-chip" class="stage-chip">Idle</div>
+
+          <div class="hero-rail">
+            <div class="hero-metrics">
+              <article class="hero-metric">
+                <span>Session Mode</span>
+                <strong id="session-mode">待开始</strong>
+              </article>
+              <article class="hero-metric">
+                <span>Active Thread</span>
+                <strong id="active-thread">等待线程</strong>
+              </article>
+            </div>
+            <div id="stage-chip" class="stage-chip">Idle</div>
+          </div>
         </section>
 
         <section class="workspace-grid">
@@ -145,10 +176,9 @@
                 </div>
                 <span id="run-status" class="run-status">idle</span>
               </div>
-              <p class="panel-note">Graph View 只作为辅助理解区域。主交互仍然是下方的面试对话，点击节点再查看详细状态。</p>
               <div id="run-graph" class="run-graph empty-state">开始面试后，这里会显示当前回合的状态图。</div>
               <details class="graph-detail-shell" open>
-                <summary>节点详情</summary>
+                <summary>详情</summary>
                 <div id="graph-detail" class="graph-detail empty-state">选择图中的节点后，这里会显示该节点的详细信息。</div>
               </details>
             </section>
