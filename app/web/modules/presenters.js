@@ -1,6 +1,7 @@
 import { SESSION_STATUS_LABELS, THREAD_STATUS_LABELS, TOPIC_LABELS } from "./constants.js";
 import { escapeHtml, formatDateTime, renderInlineMarkdown, renderMarkdown } from "./utils.js";
 
+// presenter 负责把原始 session 数据转成更适合界面展示的标签和片段。
 export function topicLabel(category) {
   return TOPIC_LABELS[category] || category || "未分类";
 }
@@ -13,6 +14,8 @@ export function threadStatusLabel(status) {
   return THREAD_STATUS_LABELS[status] || status || "未知";
 }
 
+// 当前线程优先取显式 currentThreadId；
+// 没有时再回退到 active/last thread，保证调试面板始终有内容。
 export function findCurrentThread(session) {
   if (!session) {
     return null;

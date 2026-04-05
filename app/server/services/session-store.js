@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { config } from "../config.js";
 import { readJson, writeJson } from "../lib/fs-utils.js";
 
+// 每场面试一个 JSON 文件，便于调试、回放和人工检查。
 function sessionFilePath(sessionId) {
   return path.join(config.sessionDir, `${sessionId}.json`);
 }

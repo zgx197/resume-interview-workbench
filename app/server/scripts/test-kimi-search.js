@@ -1,6 +1,8 @@
 import { config } from "../config.js";
 import { loadEnvFile } from "../env.js";
 
+// 复刻模型提供方的工具调用闭环，
+// 让联网搜索能力可以脱离 session 运行时单独测试。
 function buildToolMessage(toolCall) {
   return {
     role: "tool",

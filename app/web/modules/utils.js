@@ -1,3 +1,4 @@
+// 会话视图和图谱调试视图共用的格式化/渲染辅助函数。
 export function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -73,6 +74,8 @@ export function renderInlineMarkdown(value) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
+// 这里只支持项目里真正用到的那一小部分 Markdown，
+// 目标是可控，而不是完整兼容。
 function renderMarkdownBlock(block) {
   const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
   if (!lines.length) {

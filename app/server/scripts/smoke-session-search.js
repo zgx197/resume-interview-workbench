@@ -1,6 +1,7 @@
 import { loadEnvFile } from "../env.js";
 import { createInterviewSession, getInterviewSession } from "../services/interview-service.js";
 
+// 这条烟测保留联网开关，用来覆盖依赖搜索策略的分支。
 async function waitForSession(sessionId, predicate, timeoutMs = 360000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {

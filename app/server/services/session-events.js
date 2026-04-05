@@ -1,5 +1,6 @@
 const sessionSubscribers = new Map();
 
+// 订阅者按 session 维度分桶，保证浏览器只接收自己打开的会话流。
 function getBucket(sessionId) {
   if (!sessionSubscribers.has(sessionId)) {
     sessionSubscribers.set(sessionId, new Set());
@@ -29,7 +30,7 @@ export function publishSession(sessionId, payload) {
     try {
       handler(payload);
     } catch {
-      // Ignore subscriber failures so one dead connection does not break others.
+      // 单个订阅者异常不能影响其他连接继续接收更新。
     }
   }
 }

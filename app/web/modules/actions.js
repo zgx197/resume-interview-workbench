@@ -14,6 +14,8 @@ import {
   upsertTemplate
 } from "./templates.js";
 
+// 所有副作用都收口在 actions：
+// 包括请求、SSE 生命周期、按钮状态和本地 store 同步。
 function stopSessionStream() {
   if (state.eventSource) {
     state.eventSource.close();
@@ -22,6 +24,8 @@ function stopSessionStream() {
   }
 }
 
+// 每场面试只允许存在一个活跃 EventSource。
+// 切换 session 时必须先关掉旧流，否则旧数据会污染当前界面。
 function startSessionStream(sessionId) {
   if (state.eventSource && state.streamSessionId === sessionId) {
     return;

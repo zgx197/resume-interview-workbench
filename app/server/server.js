@@ -6,11 +6,15 @@ import { answerInterviewQuestion, createInterviewSession, getBootstrapData, getI
 import { subscribeSession } from "./services/session-events.js";
 import { deleteInterviewTemplate, listInterviewTemplates, saveInterviewTemplate } from "./services/template-service.js";
 
+// HTTP 入口故意保持很薄：这里只做路由分发，
+// 真正的状态流转、持久化和面试逻辑都在 service 层。
 function sendSseEvent(res, event, payload) {
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
+// 这里使用手写路由而不是引入框架，
+// 目的是把请求面保持得足够小，便于定位和调试。
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/bootstrap") {
     sendJson(res, 200, await getBootstrapData());
@@ -113,6 +117,7 @@ async function requestHandler(req, res) {
 
 await loadEnvFile();
 
+// 会话会完整落盘，所以进程重启后可以恢复未完成的面试。
 const server = http.createServer((req, res) => {
   requestHandler(req, res);
 });

@@ -2,6 +2,7 @@ function query(selector) {
   return document.querySelector(selector);
 }
 
+// DOM 节点统一在这里收口，避免各模块重复 querySelector。
 export const elements = {
   providerBadge: query("#provider-badge"),
   candidateName: query("#candidate-name"),

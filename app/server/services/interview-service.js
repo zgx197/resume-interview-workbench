@@ -16,6 +16,8 @@ const RUN_PHASES = ["observe", "deliberate", "decide", "execute", "feedback"];
 const inFlightRuns = new Set();
 const pendingPlanRefreshes = new Set();
 
+// interview-service 是运行时状态机的唯一入口。
+// HTTP 层只调用这里，不直接修改会话状态。
 function configuredProviderKey() {
   return config.moonshotApiKey;
 }
@@ -56,6 +58,8 @@ function buildModelStrategyInfo(providerMeta) {
   };
 }
 
+// coverage 负责记录“类别维度的覆盖进度”，
+// 它和 thread 的叙事线是两套不同但互补的视角。
 function buildCoverage(plan) {
   const coverage = {};
   for (const stage of plan.stages || []) {
@@ -108,6 +112,8 @@ function buildTemplateNotes(template, freeformNotes = "") {
   ]);
 }
 
+// draft plan 的目标只有一个：先把首题跑起来。
+// 更完整的正式计划可以在后台异步补齐，不阻塞会话激活。
 function buildDraftPlan(job, role, normalizedResume) {
   const recentExperienceTopics = normalizedResume.experiences.slice(0, 2).map((experience) => ({
     label: `${experience.company} / ${experience.role}`,
@@ -170,6 +176,8 @@ function recomputeCoverage(session) {
   return next;
 }
 
+// currentRun 会按 phase 记录时间线，
+// 这样前端可以在一轮处理中实时看到热路径状态。
 function initializePhaseStatus(currentPhase, startedAt = nowIso()) {
   return RUN_PHASES.map((phase) => ({
     name: phase,
@@ -338,6 +346,8 @@ function buildPublicSession(session) {
   };
 }
 
+// thread 表示“当前正在深挖的一条证据线”，
+// 它和 stage 分离存在，才能显式表达追问与切题。
 function createThread({ category, label, evidenceSource, stageId }) {
   return {
     id: `thread_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -455,6 +465,8 @@ function buildObservationForAnswer(session, turn) {
   };
 }
 
+// 中间态优先走 snapshot 广播而不是频繁落盘，
+// 这样能减少 I/O，同时保证 SSE 视图足够实时。
 function publishSessionSnapshot(session) {
   refreshRunProgress(session.currentRun);
   session.updatedAt = nowIso();
@@ -478,6 +490,8 @@ function buildPlanContext(session, normalizedResume) {
   };
 }
 
+// 正式 plan 刷新放到后台执行，
+// 避免首题延迟被“计划质量工作”拖慢。
 function schedulePlanRefresh(sessionId, delayMs = 0) {
   if (pendingPlanRefreshes.has(sessionId)) {
     return;
@@ -542,6 +556,8 @@ async function runSessionLifecycle(sessionId, handler) {
   }
 }
 
+// 策略层可以显式指定要切到哪个 stage。
+// 如果没指定，则保留旧的顺序推进逻辑作为安全兜底。
 function applyDecisionStageTarget(session, decision) {
   if (decision.action !== "ask_new_question") {
     return;
@@ -562,6 +578,8 @@ function applyDecisionStageTarget(session, decision) {
   }
 }
 
+// 启动链路现在优先优化首题速度：
+// observe -> 本地策略 -> 出题 -> 后台补正式 plan。
 async function processStartRun(sessionId) {
   await runSessionLifecycle(sessionId, async () => {
     const [{ normalized }, session] = await Promise.all([
@@ -634,6 +652,8 @@ async function processStartRun(sessionId) {
   });
 }
 
+// 回答链路当前仍是串行执行，
+// 但在第二阶段之后，deliberate 已经从模型调用切成了本地策略。
 async function processAnswerRun(sessionId, turnIndex) {
   await runSessionLifecycle(sessionId, async () => {
     const [{ normalized }, session] = await Promise.all([
@@ -773,6 +793,8 @@ export async function getBootstrapData() {
   };
 }
 
+// 创建会话时会先合并模板覆盖，再构建 draft plan，
+// 然后立即异步启动首轮处理。
 export async function createInterviewSession({ roleId, jobId, notes = "", enableWebSearch = false, templateId = "", template = null }) {
   let resolvedTemplate = templateId
     ? await loadInterviewTemplate(templateId)
@@ -884,6 +906,7 @@ export async function answerInterviewQuestion(sessionId, answer) {
   return buildPublicSession(session);
 }
 
+// 进程启动后只恢复那些已经持久化为 active 的运行中会话。
 export async function resumePendingSessions() {
   const sessions = await listSessions();
   const pending = sessions.filter((session) => session.status === "processing" && session.currentRun?.status === "running");

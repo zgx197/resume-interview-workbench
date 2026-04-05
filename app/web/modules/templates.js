@@ -3,6 +3,8 @@ import { buildTemplateMeta } from "./presenters.js";
 import { state } from "./state.js";
 import { escapeHtml } from "./utils.js";
 
+// 模板相关的草稿、排序、表单填充逻辑都集中在这里，
+// 让 actions 层专注于网络请求和事件编排。
 export function sortTemplates(templates) {
   return [...templates].sort((left, right) => {
     const leftRecent = left.recentUsedAt || "";
@@ -22,6 +24,8 @@ export function getDefaultJob() {
   return state.bootstrap?.jobs?.[0] || null;
 }
 
+// 未保存模板故意使用空 id，
+// 让后端统一决定本次 POST 是新建还是更新。
 export function createBlankTemplate() {
   const defaultRole = getDefaultRole();
   const defaultJob = getDefaultJob();
@@ -73,6 +77,8 @@ export function buildPersistedTemplatePayload({ forceCopy = false } = {}) {
   };
 }
 
+// 通过序列化草稿做快照比对，
+// 可以稳定判断当前表单是“已保存”还是“已修改未保存”。
 export function serializeTemplateDraft(template) {
   return JSON.stringify({
     name: template.name || "",

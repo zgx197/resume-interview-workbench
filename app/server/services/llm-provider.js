@@ -8,6 +8,8 @@ import {
 
 const MOONSHOT_REQUEST_TIMEOUT_MS = 45000;
 
+// 所有模型接入都集中在这里处理，
+// 上层只需要面对归一化后的 JSON 结果和模型元信息。
 function tryParseJson(text) {
   try {
     return JSON.parse(text);
@@ -39,6 +41,8 @@ function withProviderMeta(result, meta) {
   };
 }
 
+// 不同 phase 使用不同的运行参数。
+// fast 模式下优先牺牲思考深度来换取 plan/question 的低延迟。
 function getPhaseModelStrategy(purpose) {
   const fastMode = config.interviewRuntimeMode !== "deep";
   switch (purpose) {
@@ -70,6 +74,8 @@ function clamp(number, min, max) {
   return Math.max(min, Math.min(max, number));
 }
 
+// 对模型输出做归一化，
+// 保证下游逻辑在模型漏字段时仍然保持确定性。
 function normalizeQuestionResult(value) {
   return {
     strategy: String(value?.strategy || "structured_question"),
@@ -192,6 +198,8 @@ async function runMoonshotConversation({ instructions, input, enableWebSearch, p
   let lastMessage = null;
   const strategy = getPhaseModelStrategy(purpose);
 
+  // 模型提供方可能先返回搜索工具调用，再返回最终 JSON。
+  // 这里会把工具调用结果回灌到对话里，完成第二轮生成。
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const response = await fetchWithTimeout(`${config.moonshotBaseUrl}/chat/completions`, {
       method: "POST",
@@ -241,6 +249,7 @@ async function runMoonshotConversation({ instructions, input, enableWebSearch, p
 async function generateJson({ instructions, input, fallbackFactory, enableWebSearch = false, normalizeResult = (value) => value, purpose = "default" }) {
   const strategy = getPhaseModelStrategy(purpose);
 
+  // 兜底路径是正式运行路径的一部分，而不只是异常时的补救逻辑。
   if (config.aiProvider !== "moonshot" || !config.moonshotApiKey) {
     return withProviderMeta(fallbackFactory(), {
       provider: "fallback",

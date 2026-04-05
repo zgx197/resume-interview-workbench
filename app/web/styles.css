@@ -1,3 +1,4 @@
+/* 设计令牌：统一管理颜色、圆角、阴影和字体。 */
 :root {
   --bg: #f7efe1;
   --surface-strong: rgba(255, 252, 248, 0.96);
@@ -65,6 +66,7 @@ body {
   background: radial-gradient(circle, rgba(180, 83, 9, 0.16), transparent 70%);
 }
 
+/* 布局骨架与共享面板容器。 */
 .app-shell {
   position: relative;
   z-index: 1;
@@ -238,6 +240,7 @@ body {
   justify-items: end;
 }
 
+/* 顶部摘要区域与紧凑状态徽标。 */
 .provider-badge,
 .stage-chip,
 .status-badge,
@@ -334,6 +337,7 @@ body {
   margin: 12px 0;
 }
 
+/* 表单控件与模板编辑交互。 */
 input,
 select,
 textarea,
@@ -499,6 +503,7 @@ button:disabled {
   font-size: 0.82rem;
 }
 
+/* 工作区结构：图谱、计划、对话、复盘。 */
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -638,6 +643,8 @@ button:disabled {
 .turn-card {
   padding: 16px;
 }
+
+/* 对话卡片、嵌入详情卡与 Markdown 内容样式。 */
 
 .conversation-panel {
   min-height: 760px;
@@ -783,6 +790,7 @@ button:disabled {
   line-height: 1.55;
 }
 
+/* 空态、调试态与进场动画。 */
 .run-graph.empty-state,
 .graph-detail.empty-state,
 .conversation.empty-state,

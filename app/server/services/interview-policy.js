@@ -1,3 +1,5 @@
+// 第二阶段引入的确定性策略层。
+// 流程控制交给本地规则，模型只负责评估和表达。
 function policyProviderMeta() {
   return {
     provider: "local",
@@ -22,6 +24,8 @@ function stageRef(stage, stageIndex) {
   };
 }
 
+// 覆盖缺口按阶段/类别追踪，
+// 这样策略层可以在不再调用模型的前提下判断“还有什么没问到”。
 function listCoverageGaps(session) {
   return (session.plan?.stages || []).flatMap((stage, stageIndex) => {
     const bucket = session.coverage?.[stage.category];
@@ -81,6 +85,8 @@ function searchFriendlyCategory(category) {
   return ["ai_agent_design", "system_design", "game_framework"].includes(category);
 }
 
+// 只有当问题明显依赖最新外部信息、且 session/thread 预算仍然允许时，
+// 才会放行联网搜索。
 function evaluateSearchPolicy({ session, activeThread, category, text }) {
   const budgetRemaining = remainingSearchBudget(session);
   const alreadySearchedThisThread = (activeThread?.searchCount || 0) > 0;
@@ -106,6 +112,8 @@ function evaluateSearchPolicy({ session, activeThread, category, text }) {
   };
 }
 
+// 追问策略故意保守：
+// 只有上一轮回答确实偏弱，且当前线程仍有深挖预算时才继续追问。
 function evaluateThreadPolicy({ activeThread, assessment, policy }) {
   const maxFollowups = policy.maxFollowupsPerThread || 2;
   const followupsUsed = activeThread?.followupCount || 0;
@@ -123,6 +131,8 @@ function evaluateThreadPolicy({ activeThread, assessment, policy }) {
   };
 }
 
+// 停止策略同时考虑最小覆盖要求和硬上限，
+// 避免面试在评估模糊时无限拖长。
 function evaluateStopPolicy({ session, coverageGaps, threadPolicy }) {
   const minimumTurnsBeforeStop = session.policy?.minimumTurnsBeforeStop || 6;
   const targetTurnCount = session.plan?.targetTurnCount || minimumTurnsBeforeStop;
@@ -151,6 +161,8 @@ function evaluateStopPolicy({ session, coverageGaps, threadPolicy }) {
   };
 }
 
+// 首题永远开启一个新的证据线程，
+// 先把候选人与岗位的主线映射建立起来。
 function buildStartDecision({ session, stage }) {
   const currentStageIndex = Math.max(0, session.stageIndex || 0);
   const searchPolicy = evaluateSearchPolicy({
@@ -177,6 +189,8 @@ function buildStartDecision({ session, stage }) {
   };
 }
 
+// 回答后的决策只在三件事之间选择：
+// 继续追问、切换主题、结束面试。
 function buildAnswerDecision({ session, stage, turn, assessment }) {
   const currentStageIndex = Math.max(0, session.stageIndex || 0);
   const activeThread = getActiveThread(session, turn);
@@ -286,6 +300,7 @@ export function buildInterviewPolicy(normalizedResume, job, role) {
   };
 }
 
+// interview-service 只调用这一个公开入口，避免策略入口分散。
 export function buildInterviewDecision({ mode, session, stage, turn = null, assessment = null }) {
   if (mode === "start") {
     return buildStartDecision({ session, stage });

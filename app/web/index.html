@@ -8,10 +8,12 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <!-- 装饰性背景层，与交互面板解耦，避免影响可点击区域。 -->
     <div class="page-orbit orbit-one"></div>
     <div class="page-orbit orbit-two"></div>
 
     <div class="app-shell">
+      <!-- 左侧边栏：候选人摘要、模板编辑器、主题概览。 -->
       <aside class="sidebar">
         <section class="panel brand-panel">
           <div class="brand-topline">
@@ -143,6 +145,7 @@
         </section>
       </aside>
 
+      <!-- 主工作区：会话摘要、图谱调试、对话区、复盘区。 -->
       <main class="workspace">
         <section class="panel hero-panel">
           <div class="hero-copy">

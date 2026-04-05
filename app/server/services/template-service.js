@@ -4,6 +4,8 @@ import fs from "node:fs/promises";
 import { config } from "../config.js";
 import { readJson, writeJson } from "../lib/fs-utils.js";
 
+// 模板是用户可编辑数据，保存前先做一次强归一化，
+// 保证前后端看到的结构始终一致。
 function templateFilePath(templateId) {
   return path.join(config.templatesDir, `${templateId}.json`);
 }

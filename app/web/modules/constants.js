@@ -1,3 +1,4 @@
+// 所有纯展示层标签都集中在这里，避免渲染代码里夹杂映射表。
 export const PHASE_META = {
   observe: { label: "观察", description: "读取候选人、当前上下文与上一轮结果。" },
   deliberate: { label: "思考", description: "判断当前轮次的策略、深挖方向与搜索价值。" },

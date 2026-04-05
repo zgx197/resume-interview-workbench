@@ -1,6 +1,8 @@
 import { config } from "../config.js";
 import { loadEnvFile } from "../env.js";
 
+// 这是独立于面试运行时的底层模型探针，
+// 用来单独验证模型配置是否可用。
 async function main() {
   await loadEnvFile();
 

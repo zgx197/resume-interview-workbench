@@ -9,6 +9,8 @@ const CONTENT_TYPES = {
   ".svg": "image/svg+xml"
 };
 
+// 当前应用的请求体都比较小，直接完整读取可以换来更简单、
+// 更稳定的解析逻辑，不需要引入流式处理复杂度。
 export async function readRequestJson(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -36,6 +38,8 @@ export function sendError(res, statusCode, message, details) {
   });
 }
 
+// 静态资源服务故意保持收敛：所有文件都从 web 根目录解析，
+// 并通过扩展名推断内容类型。
 export async function sendStaticFile(res, rootDir, relativePath) {
   const safePath = relativePath === "/" ? "/index.html" : relativePath;
   const filePath = path.join(rootDir, safePath);

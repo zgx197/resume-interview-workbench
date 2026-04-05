@@ -5,6 +5,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
 
+// 统一管理环境变量和目录路径，避免业务代码里反复读取 process.env
+// 或重复拼接仓库内的资源路径。
 export const config = {
   repoRoot,
   get port() {

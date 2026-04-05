@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config.js";
 
+// 仅在变量尚未存在时从 .env 补值，保证命令行或宿主环境传入的配置优先级更高。
 export async function loadEnvFile() {
   const envPath = path.join(config.repoRoot, ".env");
   try {

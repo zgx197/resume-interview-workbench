@@ -5,6 +5,8 @@ import { loadInterviewCatalog } from "../services/catalog-loader.js";
 import { createInterviewSession, getInterviewSession } from "../services/interview-service.js";
 import { loadResumePackage } from "../services/resume-loader.js";
 
+// 轮询等待后台处理结束，确保脚本打印的是最终可见状态，
+// 而不是中途的 processing 快照。
 async function waitForSession(sessionId, predicate, timeoutMs = 180000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {

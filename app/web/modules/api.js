@@ -1,3 +1,4 @@
+// 轻量 fetch 封装，把后端错误响应统一转成可抛出的异常对象。
 export function request(url, options = {}) {
   return fetch(url, {
     headers: {

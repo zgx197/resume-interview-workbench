@@ -1,5 +1,7 @@
 import { getQuestionLibrary } from "./question-bank.js";
 
+// 兜底模式的目标不是“更聪明”，而是“始终可用”：
+// 即使模型提供方不可用或 JSON 不合法，面试流程也能完整跑通。
 function sample(list, offset = 0) {
   if (!list.length) {
     return null;
@@ -7,6 +9,8 @@ function sample(list, offset = 0) {
   return list[offset % list.length];
 }
 
+// 证据标签需要直接展示在调试信息和问题卡片里，
+// 所以这里优先输出人类可读的来源名，而不是内部 id。
 function pickEvidence(topic, normalizedResume) {
   const sourceRef = topic?.sourceRefs?.[0];
   if (!sourceRef) {
@@ -86,6 +90,8 @@ export function createFallbackPlan({ role, job, normalizedResume, notes }) {
   };
 }
 
+// 兜底题目虽然是模板化的，但仍然必须绑定到简历证据，
+// 避免退化成与候选人经历脱节的泛问题。
 export function createFallbackQuestion({ session, stage, normalizedResume }) {
   const templates = getQuestionLibrary(stage.category);
   const topic = stage.targetTopics?.[session.turns.length % Math.max(stage.targetTopics.length || 1, 1)];
@@ -113,6 +119,8 @@ export function createFallbackQuestion({ session, stage, normalizedResume }) {
   };
 }
 
+// 兜底评估故意做得很轻，只回答一个关键问题：
+// 当前回答值不值得再追问一轮。
 export function createFallbackAssessment({ answer, question }) {
   const length = answer.trim().length;
   const mentionsTradeoff = /(因为|权衡|取舍|原因|边界|约束)/.test(answer);
@@ -176,4 +184,3 @@ export function createFallbackReport(session) {
       .map((turn) => turn.assessment.suggestedFollowup)
   };
 }
-

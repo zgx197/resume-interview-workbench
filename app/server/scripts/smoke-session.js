@@ -1,6 +1,7 @@
 import { loadEnvFile } from "../env.js";
 import { answerInterviewQuestion, createInterviewSession, getInterviewSession } from "../services/interview-service.js";
 
+// 不依赖浏览器，直接从脚本层把异步面试链路跑通。
 async function waitForSession(sessionId, predicate, timeoutMs = 360000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {

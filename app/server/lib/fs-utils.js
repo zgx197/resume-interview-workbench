@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+// 统一封装 JSON 文件读写，避免 session、template、catalog、
+// resume-package 在落盘格式上各自实现一套。
 export async function readJson(filePath) {
   const raw = await fs.readFile(filePath, "utf8");
   return JSON.parse(raw);

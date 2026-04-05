@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { listJsonFiles, readJson } from "../lib/fs-utils.js";
 
+// 角色和岗位都是仓库内的静态数据，进程级缓存已经足够。
 async function loadDirectory(dirPath) {
   const files = await listJsonFiles(dirPath);
   const values = await Promise.all(files.map((filePath) => readJson(filePath)));

@@ -2,12 +2,16 @@ import path from "node:path";
 import { config } from "../config.js";
 import { readJson } from "../lib/fs-utils.js";
 
+// 简历归一化的目标是把偏展示层的 resume-package
+// 转成运行时可稳定查询的证据结构。
 function flattenText(values) {
   return values
     .flatMap((value) => (Array.isArray(value) ? flattenText(value) : [String(value)]))
     .filter(Boolean);
 }
 
+// resume-package 里的 project section 结构并不统一，
+// 先打平成证据列表，再做 topic 提取会更稳定。
 function pickProjectEvidence(project) {
   const sectionHighlights = [];
   for (const section of project.sections || []) {
@@ -33,6 +37,8 @@ function pickProjectEvidence(project) {
   ]);
 }
 
+// 工作年限只是粗估值，只用于策略默认值，
+// 不直接参与任何面向用户的评分表达。
 function parsePeriodYears(period) {
   if (!period) {
     return null;
@@ -61,6 +67,8 @@ function parsePeriodYears(period) {
   return Math.max(0, (endValue - startValue) / 12);
 }
 
+// topic 提取是启发式的，
+// 它只需要足够支撑 plan/question 的证据选取，不追求本体级精确。
 function extractTopics(normalizedResume) {
   const topicMap = new Map();
 
@@ -198,6 +206,7 @@ function normalizeResume(rawPackage) {
 
 let cache = null;
 
+// 进程生命周期内简历包基本不会变化，做一次缓存即可显著降低重复建会话成本。
 export async function loadResumePackage() {
   if (cache) {
     return cache;

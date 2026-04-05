@@ -14,6 +14,8 @@ import {
   truncateText
 } from "./utils.js";
 
+// graph.js 负责调试态状态图。
+// 它会把 currentRun、当前线程和待回答问题拼成一张轻量节点图。
 function toDebugKey(phaseName) {
   return phaseName === "deliberate" ? "deliberation" : phaseName;
 }
@@ -26,6 +28,8 @@ export function destroyGraphNetwork() {
   state.graphShellReady = false;
 }
 
+// 每个 detail builder 都负责把一种运行时对象
+// 转成图谱右侧的详情卡片。
 function buildPhaseDetail(phase, run) {
   const meta = PHASE_META[phase.name] || {};
   const debug = run.debug?.[toDebugKey(phase.name)] || null;
@@ -147,6 +151,8 @@ function buildQuestionDetail(question) {
   };
 }
 
+// 节点布局刻意做成确定性，
+// 避免运行过程中频繁重绘导致图谱不断跳动。
 function buildGraphSpec(session) {
   const run = session.currentRun;
   const now = new Date();

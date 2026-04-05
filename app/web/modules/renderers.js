@@ -17,6 +17,8 @@ import {
   renderPill
 } from "./utils.js";
 
+// renderers.js 负责所有面向产品界面的 DOM 输出，
+// 故意把写 DOM 的动作集中，保证 session 更新行为可预测。
 function updateShellSummary() {
   if (elements.candidateYears) {
     const years = state.bootstrap?.candidate?.profile?.estimatedYearsExperience;
@@ -63,6 +65,8 @@ export function renderBootstrap() {
   updateShellSummary();
 }
 
+// 计划区默认保持高信息密度，但把次级细节折叠起来，
+// 这样在调试信息变多之后仍然能保持可读性。
 function renderPlan() {
   if (!state.session) {
     elements.planList.className = "plan-list empty-state";
@@ -110,6 +114,8 @@ function renderPlan() {
     .join("");
 }
 
+// 对话区同时渲染历史 turn 和当前待答题，
+// 这样用户在回答之前也能看到完整的当前状态。
 function renderConversation() {
   if (!state.session) {
     elements.conversation.className = "conversation empty-state";
@@ -292,6 +298,8 @@ function stopRunClock() {
   }
 }
 
+// 运行时钟只在当前轮处理中存在，
+// 这样图谱可以实时显示阶段耗时，而不需要重新拉取 session。
 function ensureRunClock() {
   if (state.session?.currentRun?.status !== "running") {
     stopRunClock();
