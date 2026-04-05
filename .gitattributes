@@ -1,0 +1,32 @@
+# Default all text files to LF so checkout/commit behavior is stable across platforms.
+* text=auto eol=lf
+
+# Explicit UTF-8 + LF policy for source, config, and documentation files that
+# are part of this repository's normal editing surface.
+*.js text working-tree-encoding=UTF-8 eol=lf
+*.mjs text working-tree-encoding=UTF-8 eol=lf
+*.cjs text working-tree-encoding=UTF-8 eol=lf
+*.css text working-tree-encoding=UTF-8 eol=lf
+*.html text working-tree-encoding=UTF-8 eol=lf
+*.json text working-tree-encoding=UTF-8 eol=lf
+*.md text working-tree-encoding=UTF-8 eol=lf
+*.txt text working-tree-encoding=UTF-8 eol=lf
+*.svg text working-tree-encoding=UTF-8 eol=lf
+*.yml text working-tree-encoding=UTF-8 eol=lf
+*.yaml text working-tree-encoding=UTF-8 eol=lf
+*.ps1 text working-tree-encoding=UTF-8 eol=lf
+
+.editorconfig text working-tree-encoding=UTF-8 eol=lf
+.gitattributes text working-tree-encoding=UTF-8 eol=lf
+.env text working-tree-encoding=UTF-8 eol=lf
+.env.* text working-tree-encoding=UTF-8 eol=lf
+LICENSE text working-tree-encoding=UTF-8 eol=lf
+
+# Keep common binary assets out of line-ending and encoding transforms.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
