@@ -67,6 +67,15 @@ function parsePeriodYears(period) {
   return Math.max(0, (endValue - startValue) / 12);
 }
 
+function sourceNodeId(sourceType, sourceId) {
+  return `${sourceType}:${sourceId}`;
+}
+
+function sharedSourceCount(left = [], right = []) {
+  const leftIds = new Set(left.map((item) => sourceNodeId(item.sourceType, item.sourceId)));
+  return right.reduce((count, item) => count + (leftIds.has(sourceNodeId(item.sourceType, item.sourceId)) ? 1 : 0), 0);
+}
+
 // topic 提取是启发式的，
 // 它只需要足够支撑 plan/question 的证据选取，不追求本体级精确。
 function extractTopics(normalizedResume) {
@@ -161,6 +170,95 @@ function extractTopics(normalizedResume) {
     .sort((left, right) => right.evidence.length - left.evidence.length);
 }
 
+function buildEvidenceGraph(normalizedResume) {
+  const evidenceNodes = [
+    ...normalizedResume.experiences.map((experience) => ({
+      id: sourceNodeId("experience", experience.id),
+      type: "experience",
+      label: `${experience.company} / ${experience.role}`,
+      category: "experience",
+      evidence: flattenText([
+        experience.summary,
+        experience.bullets,
+        experience.details?.refined,
+        experience.details?.original
+      ]).slice(0, 6)
+    })),
+    ...normalizedResume.projects.map((project) => ({
+      id: sourceNodeId("project", project.slug),
+      type: "project",
+      label: project.title,
+      category: "project",
+      evidence: pickProjectEvidence(project).slice(0, 6)
+    })),
+    ...normalizedResume.skillGroups.map((group) => ({
+      id: sourceNodeId("skillGroup", group.title),
+      type: "skillGroup",
+      label: group.title,
+      category: "skill_group",
+      evidence: flattenText(group.items).slice(0, 6)
+    }))
+  ];
+
+  const topicNodes = normalizedResume.topicInventory.map((topic) => ({
+    id: topic.id,
+    type: "topic",
+    category: topic.category,
+    label: topic.label,
+    evidence: topic.evidence.slice(0, 4),
+    sourceRefs: topic.sourceRefs
+  }));
+
+  const edges = normalizedResume.topicInventory.flatMap((topic) => topic.sourceRefs.map((ref) => ({
+    id: `evidence:${topic.id}->${sourceNodeId(ref.sourceType, ref.sourceId)}`,
+    from: topic.id,
+    to: sourceNodeId(ref.sourceType, ref.sourceId),
+    relation: "supported_by"
+  })));
+
+  return {
+    nodes: [...topicNodes, ...evidenceNodes],
+    edges
+  };
+}
+
+function buildTopicGraph(normalizedResume) {
+  const nodes = normalizedResume.topicInventory.map((topic) => ({
+    id: topic.id,
+    category: topic.category,
+    label: topic.label,
+    evidence: topic.evidence.slice(0, 4),
+    sourceRefs: topic.sourceRefs,
+    sourceCount: topic.sourceRefs.length,
+    evidenceCount: topic.evidence.length
+  }));
+
+  const edges = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < nodes.length; nextIndex += 1) {
+      const left = nodes[index];
+      const right = nodes[nextIndex];
+      const sharedSources = sharedSourceCount(left.sourceRefs, right.sourceRefs);
+      if (!sharedSources && left.category !== right.category) {
+        continue;
+      }
+
+      edges.push({
+        id: `topic:${left.id}->${right.id}`,
+        from: left.id,
+        to: right.id,
+        relation: sharedSources > 0 ? "shared_evidence" : "same_category",
+        weight: Math.max(sharedSources, 1)
+      });
+    }
+  }
+
+  return {
+    nodes,
+    edges
+  };
+}
+
 function normalizeResume(rawPackage) {
   const root = rawPackage.resume;
   const resumeBlock = root.resume;
@@ -201,6 +299,8 @@ function normalizeResume(rawPackage) {
   };
 
   normalized.topicInventory = extractTopics(normalized);
+  normalized.evidenceGraph = buildEvidenceGraph(normalized);
+  normalized.topicGraph = buildTopicGraph(normalized);
   return normalized;
 }
 

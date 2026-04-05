@@ -1,7 +1,7 @@
 import { getQuestionLibrary } from "./question-bank.js";
 
 // 兜底模式的目标不是“更聪明”，而是“始终可用”：
-// 即使模型提供方不可用或 JSON 不合法，面试流程也能完整跑通。
+// 即使模型不可用或 JSON 不合法，面试流程也能完整跑通。
 function sample(list, offset = 0) {
   if (!list.length) {
     return null;
@@ -41,8 +41,60 @@ function stageTitle(category) {
   return map[category] || category;
 }
 
+function createTopicTarget(topic) {
+  return {
+    topicId: topic.id,
+    label: topic.label,
+    evidence: topic.evidence.slice(0, 2),
+    sourceRefs: topic.sourceRefs
+  };
+}
+
+function findTopicById(topicId, normalizedResume) {
+  if (!topicId) {
+    return null;
+  }
+  return normalizedResume.topicInventory.find((topic) => topic.id === topicId) || null;
+}
+
+// fallback 也尽量沿用 graph 选出来的主题，
+// 这样在模型不可用时，题目主线仍然与 policy 保持一致。
+function pickStageTopic({ session, stage, normalizedResume, decision }) {
+  const decisionTopic = findTopicById(decision?.targetTopicId, normalizedResume);
+  if (decisionTopic) {
+    return decisionTopic;
+  }
+
+  const targetedNodes = (session.topicGraph?.nodes || [])
+    .filter((node) => (
+      node.category === stage.category &&
+      ((stage.targetTopics || []).some((item) => item.topicId === node.id) || node.plannedCount > 0)
+    ))
+    .sort((left, right) => (
+      (left.askCount || 0) - (right.askCount || 0) ||
+      (right.sourceCount || 0) - (left.sourceCount || 0) ||
+      (right.evidenceCount || 0) - (left.evidenceCount || 0)
+    ));
+
+  if (targetedNodes.length) {
+    return findTopicById(targetedNodes[0].id, normalizedResume) || targetedNodes[0];
+  }
+
+  const topic = stage.targetTopics?.[session.turns.length % Math.max(stage.targetTopics.length || 1, 1)];
+  return findTopicById(topic?.topicId, normalizedResume) || topic || null;
+}
+
 export function createFallbackPlan({ role, job, normalizedResume, notes }) {
-  const recentExperienceTopics = normalizedResume.experiences.slice(0, 2).map((experience) => ({
+  const recentExperienceIds = new Set(normalizedResume.experiences.slice(0, 2).map((experience) => experience.id));
+  const recentExperienceTopics = normalizedResume.topicInventory
+    .filter((topic) => (
+      topic.category === "game_framework" &&
+      topic.sourceRefs.some((ref) => ref.sourceType === "experience" && recentExperienceIds.has(ref.sourceId))
+    ))
+    .slice(0, 2)
+    .map(createTopicTarget);
+  const fallbackWarmupTopics = normalizedResume.experiences.slice(0, 2).map((experience) => ({
+    topicId: null,
     label: `${experience.company} / ${experience.role}`,
     evidence: [experience.summary, ...(experience.bullets || []).slice(0, 2)],
     sourceRefs: [{ sourceType: "experience", sourceId: experience.id }]
@@ -79,12 +131,8 @@ export function createFallbackPlan({ role, job, normalizedResume, notes }) {
       ...stage,
       targetTopics: (
         stage.id === "project-warmup"
-          ? recentExperienceTopics
-          : (topicsByCategory[stage.category] || []).slice(0, 3).map((topic) => ({
-              label: topic.label,
-              evidence: topic.evidence.slice(0, 2),
-              sourceRefs: topic.sourceRefs
-            }))
+          ? (recentExperienceTopics.length ? recentExperienceTopics : fallbackWarmupTopics)
+          : (topicsByCategory[stage.category] || []).slice(0, 3).map(createTopicTarget)
       )
     }))
   };
@@ -92,14 +140,14 @@ export function createFallbackPlan({ role, job, normalizedResume, notes }) {
 
 // 兜底题目虽然是模板化的，但仍然必须绑定到简历证据，
 // 避免退化成与候选人经历脱节的泛问题。
-export function createFallbackQuestion({ session, stage, normalizedResume }) {
+export function createFallbackQuestion({ session, stage, normalizedResume, decision }) {
   const templates = getQuestionLibrary(stage.category);
-  const topic = stage.targetTopics?.[session.turns.length % Math.max(stage.targetTopics.length || 1, 1)];
+  const topic = pickStageTopic({ session, stage, normalizedResume, decision });
   const evidenceSource = pickEvidence(topic, normalizedResume);
   const baseTemplate = stage.id === "project-warmup"
     ? `你最近在 ${evidenceSource} 负责了哪些最核心的系统？请挑一个你真正主导设计的模块，按“背景、约束、方案、权衡、验证方式”展开。`
-    : sample(templates, session.turns.length) ||
-    `请围绕 ${stage.title} 说明你最能体现这项能力的一段实际经历，包括背景、你的职责、关键权衡和结果。`;
+    : sample(templates, session.turns.length)
+      || `请围绕 ${stage.title} 说明你最能体现这项能力的一段实际经历，包括背景、你的职责、关键权衡和结果。`;
   const prefix = session.turns.length === 0
     ? "先从你最相关的一段经历切入。"
     : `接下来我想看你在 ${stage.title} 上的真实深度。`;
@@ -108,6 +156,8 @@ export function createFallbackQuestion({ session, stage, normalizedResume }) {
     strategy: "fallback",
     stageId: stage.id,
     topicCategory: stage.category,
+    topicId: topic?.id || topic?.topicId || null,
+    topicLabel: topic?.label || stage.title,
     evidenceSource,
     expectedSignals: [
       "是否能够说清楚背景和约束",
@@ -153,6 +203,70 @@ export function createFallbackAssessment({ answer, question }) {
   };
 }
 
+function buildCoverageSummary(session) {
+  const plannedNodes = (session.topicGraph?.nodes || []).filter((node) => node.plannedCount > 0);
+  const scoredNodes = plannedNodes.filter((node) => Number.isFinite(node.averageScore));
+  const averageTopicScore = scoredNodes.length
+    ? Number((scoredNodes.reduce((sum, node) => sum + node.averageScore, 0) / scoredNodes.length).toFixed(2))
+    : null;
+
+  return {
+    plannedTopicCount: plannedNodes.length,
+    coveredTopicCount: plannedNodes.filter((node) => node.covered).length,
+    turnCount: session.turns.length,
+    averageTopicScore,
+    summary: plannedNodes.length
+      ? `计划内主题 ${plannedNodes.length} 个，已覆盖 ${plannedNodes.filter((node) => node.covered).length} 个。`
+      : "当前没有可统计的计划主题。"
+  };
+}
+
+function buildTopicCoverage(session) {
+  return (session.topicGraph?.nodes || [])
+    .filter((node) => node.plannedCount > 0 || node.askCount > 0)
+    .sort((left, right) => (
+      Number(Boolean(right.currentQuestion || right.activeThreadId)) - Number(Boolean(left.currentQuestion || left.activeThreadId)) ||
+      (right.askCount || 0) - (left.askCount || 0) ||
+      (right.plannedCount || 0) - (left.plannedCount || 0)
+    ))
+    .map((node) => ({
+      topicId: node.id,
+      label: node.label,
+      category: node.category,
+      status: node.status,
+      askCount: node.askCount || 0,
+      averageScore: node.averageScore,
+      stageTitles: node.stageTitles || [],
+      evidence: (node.evidence || []).slice(0, 3)
+    }));
+}
+
+function buildEvidenceHighlights(session) {
+  const seen = new Set();
+  return session.turns
+    .filter((turn) => turn.assessment)
+    .sort((left, right) => (right.assessment?.score || 0) - (left.assessment?.score || 0))
+    .filter((turn) => {
+      const key = `${turn.question.topicId || turn.question.topicCategory}:${turn.question.evidenceSource || ""}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6)
+    .map((turn) => ({
+      topicId: turn.question.topicId || null,
+      topicLabel: turn.question.topicLabel || turn.question.topicCategory,
+      evidenceSource: turn.question.evidenceSource || "",
+      score: turn.assessment?.score ?? null,
+      summary: [
+        `Round ${turn.index}`,
+        turn.assessment?.strengths?.[0] || turn.assessment?.risks?.[0] || "暂无摘要"
+      ].filter(Boolean).join(" · ")
+    }));
+}
+
 export function createFallbackReport(session) {
   const groupedScores = {};
   for (const turn of session.turns) {
@@ -165,7 +279,7 @@ export function createFallbackReport(session) {
 
   return {
     generatedBy: "fallback",
-    summary: `完成 ${session.turns.length} 轮问答，当前实现使用规则化评估作为离线兜底。`,
+    summary: `完成 ${session.turns.length} 轮问答，当前使用规则化评估作为离线兜底。`,
     dimensions: Object.entries(groupedScores).map(([category, scores]) => ({
       category,
       averageScore: Number((scores.reduce((sum, value) => sum + value, 0) / scores.length).toFixed(2))
@@ -173,14 +287,17 @@ export function createFallbackReport(session) {
     strengths: session.turns
       .filter((turn) => turn.assessment.score >= 4)
       .slice(0, 3)
-      .map((turn) => `${turn.question.topicCategory}：${turn.assessment.strengths[0]}`),
+      .map((turn) => `${turn.question.topicLabel || turn.question.topicCategory}：${turn.assessment.strengths[0] || "回答质量稳定"}`),
     risks: session.turns
       .filter((turn) => turn.assessment.followupNeeded)
       .slice(0, 3)
-      .map((turn) => `${turn.question.topicCategory}：${turn.assessment.risks[0]}`),
+      .map((turn) => `${turn.question.topicLabel || turn.question.topicCategory}：${turn.assessment.risks[0] || "仍需补充细节"}`),
     nextSteps: session.turns
       .filter((turn) => turn.assessment.followupNeeded)
       .slice(0, 3)
-      .map((turn) => turn.assessment.suggestedFollowup)
+      .map((turn) => turn.assessment.suggestedFollowup),
+    coverageSummary: buildCoverageSummary(session),
+    topicCoverage: buildTopicCoverage(session),
+    evidenceHighlights: buildEvidenceHighlights(session)
   };
 }

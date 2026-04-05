@@ -14,7 +14,12 @@ import { listInterviewTemplates, loadInterviewTemplate, markInterviewTemplateUse
 
 const RUN_PHASES = ["observe", "deliberate", "decide", "execute", "feedback"];
 const inFlightRuns = new Set();
-const pendingPlanRefreshes = new Set();
+const pendingBackgroundJobs = new Set();
+const BACKGROUND_JOB_KIND = {
+  PLAN_REFRESH: "plan_refresh",
+  REPORT: "report",
+  THREAD_SUMMARY: "thread_summary"
+};
 
 // interview-service 是运行时状态机的唯一入口。
 // HTTP 层只调用这里，不直接修改会话状态。
@@ -112,10 +117,103 @@ function buildTemplateNotes(template, freeformNotes = "") {
   ]);
 }
 
+function sameSourceRef(left, right) {
+  return Boolean(
+    left?.sourceType &&
+    left?.sourceId &&
+    left.sourceType === right?.sourceType &&
+    left.sourceId === right?.sourceId
+  );
+}
+
+function countMatchedSourceRefs(left = [], right = []) {
+  return left.reduce((count, ref) => count + (right.some((item) => sameSourceRef(ref, item)) ? 1 : 0), 0);
+}
+
+function createTopicTarget(topic) {
+  return {
+    topicId: topic.id,
+    label: topic.label,
+    evidence: topic.evidence.slice(0, 2),
+    sourceRefs: topic.sourceRefs
+  };
+}
+
+function findBestTopicMatch(targetTopic, stageCategory, normalizedResume) {
+  if (!normalizedResume?.topicInventory?.length) {
+    return null;
+  }
+
+  if (targetTopic?.topicId) {
+    return normalizedResume.topicInventory.find((topic) => topic.id === targetTopic.topicId) || null;
+  }
+
+  const preferredCategory = targetTopic?.topicCategory || stageCategory;
+  let bestTopic = null;
+  let bestScore = -1;
+
+  for (const topic of normalizedResume.topicInventory) {
+    const matchedSourceCount = countMatchedSourceRefs(topic.sourceRefs, targetTopic?.sourceRefs || []);
+    const matchedEvidenceCount = (targetTopic?.evidence || []).filter((item) => topic.evidence.includes(item)).length;
+    const sameLabel = targetTopic?.label && topic.label === targetTopic.label;
+    const score = (
+      matchedSourceCount * 10 +
+      matchedEvidenceCount * 3 +
+      (sameLabel ? 4 : 0) +
+      (topic.category === preferredCategory ? 3 : 0)
+    );
+
+    if (score > bestScore) {
+      bestTopic = topic;
+      bestScore = score;
+    }
+  }
+
+  return bestScore > 0 ? bestTopic : null;
+}
+
+// LLM 产出的 plan 不一定能稳定给出 topicId，
+// 这里用 label/sourceRefs/category 做一次本地归并，保证后续 graph/policy 可直接消费。
+function attachTopicIdsToPlan(plan, normalizedResume) {
+  if (!plan) {
+    return plan;
+  }
+
+  return {
+    ...plan,
+    stages: (plan.stages || []).map((stage) => ({
+      ...stage,
+      targetTopics: (stage.targetTopics || []).map((topic) => {
+        const matchedTopic = findBestTopicMatch(topic, stage.category, normalizedResume);
+        return {
+          ...topic,
+          topicId: topic?.topicId || matchedTopic?.id || null,
+          label: topic?.label || matchedTopic?.label || stage.title || stage.category,
+          evidence: Array.isArray(topic?.evidence) && topic.evidence.length
+            ? topic.evidence
+            : (matchedTopic?.evidence || []).slice(0, 2),
+          sourceRefs: Array.isArray(topic?.sourceRefs) && topic.sourceRefs.length
+            ? topic.sourceRefs
+            : (matchedTopic?.sourceRefs || [])
+        };
+      })
+    }))
+  };
+}
+
 // draft plan 的目标只有一个：先把首题跑起来。
 // 更完整的正式计划可以在后台异步补齐，不阻塞会话激活。
 function buildDraftPlan(job, role, normalizedResume) {
-  const recentExperienceTopics = normalizedResume.experiences.slice(0, 2).map((experience) => ({
+  const recentExperienceIds = new Set(normalizedResume.experiences.slice(0, 2).map((experience) => experience.id));
+  const recentExperienceTopics = normalizedResume.topicInventory
+    .filter((topic) => (
+      topic.category === "game_framework" &&
+      topic.sourceRefs.some((ref) => ref.sourceType === "experience" && recentExperienceIds.has(ref.sourceId))
+    ))
+    .slice(0, 2)
+    .map(createTopicTarget);
+  const fallbackWarmupTopics = normalizedResume.experiences.slice(0, 2).map((experience) => ({
+    topicId: null,
     label: `${experience.company} / ${experience.role}`,
     evidence: [experience.summary, ...(experience.bullets || []).slice(0, 2)],
     sourceRefs: [{ sourceType: "experience", sourceId: experience.id }]
@@ -129,7 +227,7 @@ function buildDraftPlan(job, role, normalizedResume) {
       title: "项目切入",
       goal: `先由 ${role.name} 建立候选人与岗位的主线映射。`,
       promptHint: "等待正式计划生成。",
-      targetTopics: recentExperienceTopics
+      targetTopics: recentExperienceTopics.length ? recentExperienceTopics : fallbackWarmupTopics
     },
     ...(job.questionAreas || []).map((area) => ({
       id: `area-${area}`,
@@ -137,11 +235,7 @@ function buildDraftPlan(job, role, normalizedResume) {
       title: area,
       goal: `覆盖 ${area} 相关能力。`,
       promptHint: "等待正式计划生成。",
-      targetTopics: (topicsByCategory[area] || []).slice(0, 3).map((topic) => ({
-        label: topic.label,
-        evidence: topic.evidence.slice(0, 2),
-        sourceRefs: topic.sourceRefs
-      }))
+      targetTopics: (topicsByCategory[area] || []).slice(0, 3).map(createTopicTarget)
     }))
   ];
 
@@ -155,6 +249,51 @@ function buildDraftPlan(job, role, normalizedResume) {
 
 function getCurrentStage(session) {
   return session.plan?.stages?.[session.stageIndex] || session.plan?.stages?.at(-1) || null;
+}
+
+// session.topicGraph 保留“静态拓扑 + 计划映射”，
+// askCount / activeThread / currentQuestion 这类运行态指标由后续重算填充。
+function buildSessionTopicGraph(plan, normalizedResume) {
+  const plannedStageRefs = new Map();
+
+  for (const stage of plan?.stages || []) {
+    for (const topic of stage.targetTopics || []) {
+      if (!topic?.topicId) {
+        continue;
+      }
+
+      const refs = plannedStageRefs.get(topic.topicId) || [];
+      refs.push({
+        stageId: stage.id,
+        stageTitle: stage.title,
+        category: stage.category
+      });
+      plannedStageRefs.set(topic.topicId, refs);
+    }
+  }
+
+  return {
+    nodes: (normalizedResume?.topicGraph?.nodes || []).map((node) => {
+      const stageRefs = plannedStageRefs.get(node.id) || [];
+      return {
+        ...node,
+        stageIds: stageRefs.map((item) => item.stageId),
+        stageTitles: stageRefs.map((item) => item.stageTitle),
+        plannedCount: stageRefs.length,
+        askCount: 0,
+        averageScore: null,
+        lastScore: null,
+        lastTurnIndex: null,
+        threadCount: 0,
+        activeThreadId: null,
+        currentQuestion: false,
+        covered: false,
+        status: stageRefs.length ? "planned" : "idle"
+      };
+    }),
+    edges: (normalizedResume?.topicGraph?.edges || []).map((edge) => ({ ...edge })),
+    updatedAt: nowIso()
+  };
 }
 
 function recomputeCoverage(session) {
@@ -174,6 +313,96 @@ function recomputeCoverage(session) {
   }
 
   return next;
+}
+
+// 每次进入关键状态切换都重算 topic graph，
+// 避免线程关闭、追问继续、题目切换之后出现节点状态漂移。
+function recomputeTopicGraph(session) {
+  if (!session.topicGraph?.nodes) {
+    return session.topicGraph || null;
+  }
+
+  const nodeStats = new Map();
+  const threadCounts = new Map();
+  const activeThreads = new Map();
+
+  for (const thread of session.topicThreads || []) {
+    if (!thread?.topicId) {
+      continue;
+    }
+
+    threadCounts.set(thread.topicId, (threadCounts.get(thread.topicId) || 0) + 1);
+    if (thread.status === "active") {
+      activeThreads.set(thread.topicId, thread.id);
+    }
+  }
+
+  for (const turn of session.turns || []) {
+    const topicId = turn.question?.topicId;
+    if (!topicId) {
+      continue;
+    }
+
+    const stat = nodeStats.get(topicId) || {
+      askCount: 0,
+      scores: [],
+      lastScore: null,
+      lastTurnIndex: null
+    };
+    stat.askCount += 1;
+    stat.lastTurnIndex = turn.index;
+    if (Number.isFinite(turn.assessment?.score)) {
+      stat.scores.push(turn.assessment.score);
+      stat.lastScore = turn.assessment.score;
+    }
+    nodeStats.set(topicId, stat);
+  }
+
+  return {
+    ...session.topicGraph,
+    nodes: session.topicGraph.nodes.map((node) => {
+      const stat = nodeStats.get(node.id);
+      const askCount = stat?.askCount || 0;
+      const averageScore = stat?.scores?.length
+        ? Number((stat.scores.reduce((sum, score) => sum + score, 0) / stat.scores.length).toFixed(2))
+        : null;
+      const currentQuestion = session.nextQuestion?.topicId === node.id;
+      const activeThreadId = activeThreads.get(node.id) || null;
+      const covered = askCount > 0;
+
+      return {
+        ...node,
+        askCount,
+        averageScore,
+        lastScore: stat?.lastScore ?? null,
+        lastTurnIndex: stat?.lastTurnIndex ?? null,
+        threadCount: threadCounts.get(node.id) || 0,
+        activeThreadId,
+        currentQuestion,
+        covered,
+        status: currentQuestion || activeThreadId
+          ? "active"
+          : covered
+            ? "covered"
+            : (node.plannedCount || 0) > 0
+              ? "planned"
+              : "idle"
+      };
+    }),
+    updatedAt: nowIso()
+  };
+}
+
+function recomputeDerivedState(session) {
+  session.coverage = recomputeCoverage(session);
+  session.topicGraph = recomputeTopicGraph(session);
+}
+
+// plan 变更时统一重建 stage->topic 映射，
+// 这样 draft plan、refined plan 和旧 session 都走同一套修复路径。
+function syncPlanAndGraph(session, normalizedResume) {
+  session.plan = attachTopicIdsToPlan(session.plan, normalizedResume);
+  session.topicGraph = buildSessionTopicGraph(session.plan, normalizedResume);
 }
 
 // currentRun 会按 phase 记录时间线，
@@ -321,6 +550,178 @@ function failRun(run, error) {
   refreshRunProgress(run, completedAt);
 }
 
+// 后台任务状态独立于 currentRun，
+// 用来表达“主交互已结束，但冷路径工作仍在继续”的状态。
+function createBackgroundJobState(kind, targetId = null) {
+  return {
+    kind,
+    targetId,
+    status: "idle",
+    queuedAt: null,
+    startedAt: null,
+    completedAt: null,
+    failedAt: null,
+    attempts: 0,
+    error: null
+  };
+}
+
+function queueBackgroundJob(job, queuedAt = nowIso()) {
+  return {
+    ...createBackgroundJobState(job?.kind || "job"),
+    ...job,
+    status: "pending",
+    queuedAt,
+    startedAt: null,
+    completedAt: null,
+    failedAt: null,
+    error: null
+  };
+}
+
+function startBackgroundJob(job, startedAt = nowIso()) {
+  return {
+    ...createBackgroundJobState(job?.kind || "job"),
+    ...job,
+    status: "running",
+    startedAt,
+    completedAt: null,
+    failedAt: null,
+    attempts: (job?.attempts || 0) + 1,
+    error: null
+  };
+}
+
+function completeBackgroundJob(job, completedAt = nowIso()) {
+  return {
+    ...createBackgroundJobState(job?.kind || "job"),
+    ...job,
+    status: "completed",
+    completedAt,
+    failedAt: null,
+    error: null
+  };
+}
+
+function failBackgroundJob(job, error, failedAt = nowIso()) {
+  return {
+    ...createBackgroundJobState(job?.kind || "job"),
+    ...job,
+    status: "failed",
+    failedAt,
+    completedAt: null,
+    error: error.message
+  };
+}
+
+function backgroundJobKey(sessionId, kind, targetId = null) {
+  return `${sessionId}:${kind}:${targetId || "session"}`;
+}
+
+function getSessionJobState(session, kind) {
+  if (kind === BACKGROUND_JOB_KIND.PLAN_REFRESH) {
+    session.planJob ||= createBackgroundJobState(kind);
+    return session.planJob;
+  }
+
+  if (kind === BACKGROUND_JOB_KIND.REPORT) {
+    session.reportJob ||= createBackgroundJobState(kind);
+    return session.reportJob;
+  }
+
+  return null;
+}
+
+function setSessionJobState(session, kind, job) {
+  if (kind === BACKGROUND_JOB_KIND.PLAN_REFRESH) {
+    session.planJob = job;
+    return;
+  }
+
+  if (kind === BACKGROUND_JOB_KIND.REPORT) {
+    session.reportJob = job;
+  }
+}
+
+function getThreadById(session, threadId) {
+  return session.topicThreads?.find((thread) => thread.id === threadId) || null;
+}
+
+function getThreadSummaryJobState(thread) {
+  if (!thread) {
+    return null;
+  }
+  thread.summaryJob ||= createBackgroundJobState(BACKGROUND_JOB_KIND.THREAD_SUMMARY, thread.id);
+  return thread.summaryJob;
+}
+
+function setThreadSummaryJobState(thread, job) {
+  if (!thread) {
+    return;
+  }
+  thread.summaryJob = {
+    ...job,
+    targetId: thread.id
+  };
+}
+
+function buildBackgroundJobsView(session) {
+  const jobs = [];
+
+  const pushJob = (job, extras = {}) => {
+    if (!job) {
+      return;
+    }
+
+    jobs.push({
+      id: backgroundJobKey(session.id, job.kind, job.targetId || extras.targetId || null),
+      kind: job.kind,
+      scope: extras.scope || "session",
+      targetId: job.targetId || extras.targetId || null,
+      targetLabel: extras.targetLabel || null,
+      status: job.status || "idle",
+      attempts: job.attempts || 0,
+      error: job.error || null,
+      queuedAt: job.queuedAt || null,
+      startedAt: job.startedAt || null,
+      completedAt: job.completedAt || null,
+      failedAt: job.failedAt || null
+    });
+  };
+
+  pushJob(session.planJob, {
+    scope: "session",
+    targetLabel: "面试计划刷新"
+  });
+  pushJob(session.reportJob, {
+    scope: "session",
+    targetLabel: "面试复盘生成"
+  });
+
+  for (const thread of session.topicThreads || []) {
+    pushJob(thread.summaryJob, {
+      scope: "thread",
+      targetId: thread.id,
+      targetLabel: thread.label || thread.category || thread.id
+    });
+  }
+
+  return jobs.sort((left, right) => {
+    const statusWeight = {
+      running: 0,
+      pending: 1,
+      failed: 2,
+      completed: 3,
+      idle: 4
+    };
+    return (
+      (statusWeight[left.status] ?? 9) - (statusWeight[right.status] ?? 9) ||
+      String(left.targetLabel || "").localeCompare(String(right.targetLabel || "")) ||
+      String(left.kind).localeCompare(String(right.kind))
+    );
+  });
+}
+
 function buildPublicSession(session) {
   refreshRunProgress(session.currentRun);
   return {
@@ -336,9 +737,13 @@ function buildPublicSession(session) {
     plan: session.plan,
     stageIndex: session.stageIndex,
     coverage: session.coverage,
+    topicGraph: session.topicGraph || null,
     turns: session.turns,
     nextQuestion: session.nextQuestion,
     report: session.report || null,
+    planJob: session.planJob || null,
+    reportJob: session.reportJob || null,
+    backgroundJobs: buildBackgroundJobsView(session),
     provider: session.provider,
     currentRun: session.currentRun || null,
     topicThreads: session.topicThreads || [],
@@ -355,6 +760,7 @@ function createThread({ category, label, evidenceSource, stageId }) {
     label,
     evidenceSource,
     stageId,
+    topicId: null,
     status: "active",
     openedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -367,7 +773,12 @@ function createThread({ category, label, evidenceSource, stageId }) {
     closureReason: null,
     lastQuestionText: null,
     lastEvidenceSource: evidenceSource || null,
-    lastAssessmentScore: null
+    lastAssessmentScore: null,
+    summary: null,
+    summarySignals: [],
+    summaryRisks: [],
+    summaryUpdatedAt: null,
+    summaryJob: null
   };
 }
 
@@ -404,7 +815,14 @@ function upsertThreadForDecision(session, decision, question) {
     session.topicThreads.push(thread);
   }
 
+  thread.summaryJob ||= createBackgroundJobState(BACKGROUND_JOB_KIND.THREAD_SUMMARY, thread.id);
+
   thread.updatedAt = nowIso();
+  thread.topicId = question.topicId || decision.targetTopicId || thread.topicId || null;
+  thread.category = question.topicCategory || thread.category;
+  thread.label = decision.topicLabel || question.topicLabel || thread.label;
+  thread.stageId = question.stageId || thread.stageId;
+  thread.evidenceSource = question.evidenceSource || thread.evidenceSource;
   thread.questionCount += 1;
   thread.lastDecision = decision.action;
   thread.lastQuestionText = question.text;
@@ -493,52 +911,222 @@ function buildPlanContext(session, normalizedResume) {
 // 正式 plan 刷新放到后台执行，
 // 避免首题延迟被“计划质量工作”拖慢。
 function schedulePlanRefresh(sessionId, delayMs = 0) {
-  if (pendingPlanRefreshes.has(sessionId)) {
+  scheduleBackgroundJob({
+    sessionId,
+    kind: BACKGROUND_JOB_KIND.PLAN_REFRESH,
+    delayMs
+  });
+}
+
+async function refreshDraftPlanJob({ sessionId }) {
+  const session = await loadSession(sessionId);
+  if (session.plan?.strategy !== "draft_plan") {
+    return false;
+  }
+
+  if (session.status === "processing") {
+    return true;
+  }
+
+  setSessionJobState(session, BACKGROUND_JOB_KIND.PLAN_REFRESH, startBackgroundJob(
+    getSessionJobState(session, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+  ));
+  await persistSession(session);
+
+  const { normalized } = await loadResumePackage();
+  const refinedPlan = attachTopicIdsToPlan(await buildInterviewPlan(buildPlanContext(session, normalized)), normalized);
+
+  const latest = await loadSession(sessionId);
+  if (latest.plan?.strategy !== "draft_plan") {
+    return false;
+  }
+
+  if (latest.status === "processing") {
+    return true;
+  }
+
+  latest.plan = refinedPlan;
+  setSessionJobState(latest, BACKGROUND_JOB_KIND.PLAN_REFRESH, completeBackgroundJob(
+    getSessionJobState(latest, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+  ));
+  syncPlanAndGraph(latest, normalized);
+  recomputeDerivedState(latest);
+  await persistSession(latest);
+  return false;
+}
+
+// report 生成属于冷路径工作，
+// 面试结束时只负责排队，真正的生成放到后台执行。
+function scheduleReportRefresh(sessionId, delayMs = 0) {
+  scheduleBackgroundJob({
+    sessionId,
+    kind: BACKGROUND_JOB_KIND.REPORT,
+    delayMs
+  });
+}
+
+async function refreshInterviewReportJob({ sessionId }) {
+  const session = await loadSession(sessionId);
+  if (session.status !== "completed") {
+    return false;
+  }
+
+  if (session.report && getSessionJobState(session, BACKGROUND_JOB_KIND.REPORT)?.status === "completed") {
+    return false;
+  }
+
+  if (session.status === "processing" || session.currentRun?.status === "running") {
+    return true;
+  }
+
+  const pendingThreadSummary = (session.topicThreads || []).some((thread) => {
+    const status = getThreadSummaryJobState(thread)?.status || "idle";
+    return status === "pending" || status === "running";
+  });
+  if (pendingThreadSummary) {
+    return true;
+  }
+
+  setSessionJobState(session, BACKGROUND_JOB_KIND.REPORT, startBackgroundJob(
+    getSessionJobState(session, BACKGROUND_JOB_KIND.REPORT)
+  ));
+  await persistSession(session);
+
+  const report = await generateInterviewReport(session);
+
+  const latest = await loadSession(sessionId);
+  if (latest.status !== "completed") {
+    return false;
+  }
+
+  latest.report = report;
+  setSessionJobState(latest, BACKGROUND_JOB_KIND.REPORT, completeBackgroundJob(
+    getSessionJobState(latest, BACKGROUND_JOB_KIND.REPORT)
+  ));
+  await persistSession(latest);
+  return false;
+}
+
+function buildThreadSummary(session, thread) {
+  const relatedTurns = (session.turns || []).filter((turn) => turn.threadId === thread.id);
+  const latestTurn = relatedTurns.at(-1) || null;
+  const keySignals = Array.from(new Set(relatedTurns.flatMap((turn) => turn.question?.expectedSignals || []))).slice(0, 4);
+  const strengths = Array.from(new Set(relatedTurns.flatMap((turn) => turn.assessment?.strengths || []))).slice(0, 3);
+  const risks = Array.from(new Set(relatedTurns.flatMap((turn) => turn.assessment?.risks || []))).slice(0, 3);
+
+  return {
+    summary: compactLines([
+      `主题 ${thread.label || thread.category} 共完成 ${relatedTurns.length} 轮问答。`,
+      thread.lastEvidenceSource ? `当前证据锚点：${thread.lastEvidenceSource}` : "",
+      latestTurn?.assessment ? `最近一轮评分 ${latestTurn.assessment.score} / 5。` : "",
+      strengths[0] ? `主要亮点：${strengths[0]}` : "",
+      risks[0] ? `待补风险：${risks[0]}` : ""
+    ]),
+    summarySignals: keySignals,
+    summaryRisks: risks,
+    summaryUpdatedAt: nowIso()
+  };
+}
+
+function scheduleThreadSummaryRefresh(sessionId, threadId, delayMs = 0) {
+  if (!threadId) {
     return;
   }
 
-  pendingPlanRefreshes.add(sessionId);
+  scheduleBackgroundJob({
+    sessionId,
+    kind: BACKGROUND_JOB_KIND.THREAD_SUMMARY,
+    targetId: threadId,
+    delayMs
+  });
+}
+
+async function refreshThreadSummaryJob({ sessionId, targetId }) {
+  const session = await loadSession(sessionId);
+  if (session.status === "processing") {
+    return true;
+  }
+
+  const thread = getThreadById(session, targetId);
+  if (!thread) {
+    return false;
+  }
+
+  setThreadSummaryJobState(thread, startBackgroundJob(getThreadSummaryJobState(thread)));
+  await persistSession(session);
+
+  const latest = await loadSession(sessionId);
+  if (latest.status === "processing") {
+    return true;
+  }
+
+  const latestThread = getThreadById(latest, targetId);
+  if (!latestThread) {
+    return false;
+  }
+
+  const summary = buildThreadSummary(latest, latestThread);
+  latestThread.summary = summary.summary;
+  latestThread.summarySignals = summary.summarySignals;
+  latestThread.summaryRisks = summary.summaryRisks;
+  latestThread.summaryUpdatedAt = summary.summaryUpdatedAt;
+  setThreadSummaryJobState(latestThread, completeBackgroundJob(getThreadSummaryJobState(latestThread)));
+  await persistSession(latest);
+  return false;
+}
+
+function scheduleBackgroundJob({ sessionId, kind, targetId = null, delayMs = 0 }) {
+  const key = backgroundJobKey(sessionId, kind, targetId);
+  if (pendingBackgroundJobs.has(key)) {
+    return;
+  }
+
+  pendingBackgroundJobs.add(key);
   setTimeout(() => {
-    void refreshDraftPlan(sessionId);
+    void runBackgroundJob({ sessionId, kind, targetId });
   }, delayMs);
 }
 
-async function refreshDraftPlan(sessionId) {
+async function runBackgroundJob({ sessionId, kind, targetId = null }) {
+  const key = backgroundJobKey(sessionId, kind, targetId);
   let shouldRetry = false;
 
   try {
-    const session = await loadSession(sessionId);
-    if (session.plan?.strategy !== "draft_plan") {
-      return;
+    switch (kind) {
+      case BACKGROUND_JOB_KIND.PLAN_REFRESH:
+        shouldRetry = await refreshDraftPlanJob({ sessionId });
+        break;
+      case BACKGROUND_JOB_KIND.REPORT:
+        shouldRetry = await refreshInterviewReportJob({ sessionId });
+        break;
+      case BACKGROUND_JOB_KIND.THREAD_SUMMARY:
+        shouldRetry = await refreshThreadSummaryJob({ sessionId, targetId });
+        break;
+      default:
+        break;
     }
-
-    if (session.status === "processing") {
-      shouldRetry = true;
-      return;
-    }
-
-    const { normalized } = await loadResumePackage();
-    const refinedPlan = await buildInterviewPlan(buildPlanContext(session, normalized));
-
-    const latest = await loadSession(sessionId);
-    if (latest.plan?.strategy !== "draft_plan") {
-      return;
-    }
-
-    if (latest.status === "processing") {
-      shouldRetry = true;
-      return;
-    }
-
-    latest.plan = refinedPlan;
-    latest.coverage = recomputeCoverage(latest);
-    await persistSession(latest);
   } catch (error) {
-    console.error(`failed to refresh interview plan for ${sessionId}: ${error.message}`);
+    console.error(`failed to run background job ${kind} for ${sessionId}: ${error.message}`);
+
+    try {
+      const latest = await loadSession(sessionId);
+      if (kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY) {
+        const thread = getThreadById(latest, targetId);
+        if (thread) {
+          setThreadSummaryJobState(thread, failBackgroundJob(getThreadSummaryJobState(thread), error));
+          await persistSession(latest);
+        }
+      } else {
+        setSessionJobState(latest, kind, failBackgroundJob(getSessionJobState(latest, kind), error));
+        await persistSession(latest);
+      }
+    } catch (persistError) {
+      console.error(`failed to persist background job error for ${sessionId}: ${persistError.message}`);
+    }
   } finally {
-    pendingPlanRefreshes.delete(sessionId);
+    pendingBackgroundJobs.delete(key);
     if (shouldRetry) {
-      schedulePlanRefresh(sessionId, 1500);
+      scheduleBackgroundJob({ sessionId, kind, targetId, delayMs: 1500 });
     }
   }
 }
@@ -578,6 +1166,16 @@ function applyDecisionStageTarget(session, decision) {
   }
 }
 
+function applyQuestionDecisionContext(question, decision, stage) {
+  question.stageId ||= stage?.id || "";
+  question.topicCategory ||= decision.targetTopicCategory || stage?.category || "system_design";
+  question.topicId ||= decision.targetTopicId || null;
+  question.topicLabel ||= decision.topicLabel || decision.targetTopicLabel || "";
+  if (!question.evidenceSource && decision.targetEvidenceSource) {
+    question.evidenceSource = decision.targetEvidenceSource;
+  }
+}
+
 // 启动链路现在优先优化首题速度：
 // observe -> 本地策略 -> 出题 -> 后台补正式 plan。
 async function processStartRun(sessionId) {
@@ -588,6 +1186,8 @@ async function processStartRun(sessionId) {
     ]);
 
     try {
+      syncPlanAndGraph(session, normalized);
+      recomputeDerivedState(session);
       setRunPhase(session.currentRun, "observe", "收集候选人画像、岗位要求和当前阶段目标。");
       session.currentRun.debug.observe = buildObservationForStart(session, normalized);
       publishSessionSnapshot(session);
@@ -610,7 +1210,11 @@ async function processStartRun(sessionId) {
         rationale: session.currentRun.debug.deliberation.rationale,
         threadId: null,
         topicLabel: session.currentRun.debug.deliberation.topicLabel,
-        targetStageIndex: session.currentRun.debug.deliberation.targetStageIndex
+        targetStageIndex: session.currentRun.debug.deliberation.targetStageIndex,
+        targetTopicId: session.currentRun.debug.deliberation.targetTopicId || null,
+        targetTopicLabel: session.currentRun.debug.deliberation.targetTopicLabel || session.currentRun.debug.deliberation.topicLabel,
+        targetTopicCategory: session.currentRun.debug.deliberation.targetTopicCategory || null,
+        targetEvidenceSource: session.currentRun.debug.deliberation.targetEvidenceSource || null
       };
       session.currentRun.debug.decision = decision;
       publishSessionSnapshot(session);
@@ -618,18 +1222,22 @@ async function processStartRun(sessionId) {
       setRunPhase(session.currentRun, "execute", decision.shouldSearch ? "生成问题前启用联网搜索。" : "直接生成第一道问题。");
       publishSessionSnapshot(session);
       applyDecisionStageTarget(session, decision);
+      const stage = getCurrentStage(session);
       const question = await generateInterviewQuestion({
         session,
-        stage: getCurrentStage(session),
+        stage,
         normalizedResume: normalized,
         enableWebSearch: decision.shouldSearch,
         decision
       });
       recordRunStrategy(session.currentRun, "execute", question._providerMeta);
+      applyQuestionDecisionContext(question, decision, stage);
       const thread = upsertThreadForDecision(session, decision, question);
       question.threadId = thread.id;
+      question.topicId ||= thread.topicId;
       session.nextQuestion = question;
       session.currentThreadId = thread.id;
+      recomputeDerivedState(session);
       session.currentRun.debug.execution = {
         summary: "第一道问题已生成。",
         question,
@@ -663,6 +1271,8 @@ async function processAnswerRun(sessionId, turnIndex) {
     const turn = session.turns.find((item) => item.index === turnIndex);
 
     try {
+      syncPlanAndGraph(session, normalized);
+      recomputeDerivedState(session);
       setRunPhase(session.currentRun, "observe", "分析用户回答、当前线程和覆盖情况。");
       publishSessionSnapshot(session);
       const assessment = await assessInterviewAnswer({
@@ -679,7 +1289,7 @@ async function processAnswerRun(sessionId, turnIndex) {
         preliminaryAssessment: assessment,
         modelStrategy: buildModelStrategyInfo(assessment._providerMeta)
       };
-      session.coverage = recomputeCoverage(session);
+      recomputeDerivedState(session);
       publishSessionSnapshot(session);
 
       setRunPhase(session.currentRun, "deliberate", "判断是继续追问、切换主题、联网搜索还是结束面试。");
@@ -702,7 +1312,11 @@ async function processAnswerRun(sessionId, turnIndex) {
         rationale: session.currentRun.debug.deliberation.rationale,
         threadId: session.currentRun.debug.deliberation.threadMode === "continue" ? turn.threadId : null,
         topicLabel: session.currentRun.debug.deliberation.topicLabel,
-        targetStageIndex: session.currentRun.debug.deliberation.targetStageIndex
+        targetStageIndex: session.currentRun.debug.deliberation.targetStageIndex,
+        targetTopicId: session.currentRun.debug.deliberation.targetTopicId || turn.question?.topicId || null,
+        targetTopicLabel: session.currentRun.debug.deliberation.targetTopicLabel || session.currentRun.debug.deliberation.topicLabel,
+        targetTopicCategory: session.currentRun.debug.deliberation.targetTopicCategory || turn.question?.topicCategory || null,
+        targetEvidenceSource: session.currentRun.debug.deliberation.targetEvidenceSource || turn.question?.evidenceSource || null
       };
       session.currentRun.debug.decision = decision;
       publishSessionSnapshot(session);
@@ -713,27 +1327,32 @@ async function processAnswerRun(sessionId, turnIndex) {
       if (decision.action === "end_interview") {
         session.status = "completed";
         session.nextQuestion = null;
-        session.report = await generateInterviewReport(session);
-        recordRunStrategy(session.currentRun, "execute", session.report._providerMeta);
+        session.report = null;
+        session.reportJob = queueBackgroundJob(session.reportJob || createBackgroundJobState(BACKGROUND_JOB_KIND.REPORT));
         session.currentRun.debug.execution = {
-          modelStrategy: buildModelStrategyInfo(session.report._providerMeta),
-          summary: "面试结束，复盘报告已生成。"
+          modelStrategy: null,
+          summary: "面试已结束，完整复盘正在后台生成。",
+          reportJob: session.reportJob
         };
       } else {
         applyDecisionStageTarget(session, decision);
 
+        const stage = getCurrentStage(session);
         const question = await generateInterviewQuestion({
           session,
-          stage: getCurrentStage(session),
+          stage,
           normalizedResume: normalized,
           enableWebSearch: decision.shouldSearch,
           decision
         });
         recordRunStrategy(session.currentRun, "execute", question._providerMeta);
+        applyQuestionDecisionContext(question, decision, stage);
         const thread = upsertThreadForDecision(session, decision, question);
         question.threadId = thread.id;
+        question.topicId ||= thread.topicId;
         session.currentThreadId = thread.id;
         session.nextQuestion = question;
+        recomputeDerivedState(session);
         session.currentRun.debug.execution = {
           modelStrategy: buildModelStrategyInfo(question._providerMeta),
           summary: "下一道问题已生成。",
@@ -744,11 +1363,17 @@ async function processAnswerRun(sessionId, turnIndex) {
       setRunPhase(session.currentRun, "feedback", "回写线程状态、覆盖率和回合结果。");
       turn.processing = false;
       finalizeThreadAfterAnswer(session, turn, session.currentRun.debug.decision);
-      session.coverage = recomputeCoverage(session);
       if (session.status !== "completed") {
         session.status = "active";
       } else {
         session.currentThreadId = null;
+      }
+      recomputeDerivedState(session);
+      const settledThread = getThreadById(session, turn.threadId);
+      if (settledThread) {
+        setThreadSummaryJobState(settledThread, queueBackgroundJob(
+          getThreadSummaryJobState(settledThread) || createBackgroundJobState(BACKGROUND_JOB_KIND.THREAD_SUMMARY, settledThread.id)
+        ));
       }
       session.currentRun.debug.feedback = {
         summary: session.status === "completed"
@@ -757,6 +1382,10 @@ async function processAnswerRun(sessionId, turnIndex) {
       };
       completeRun(session.currentRun);
       await persistSession(session);
+      scheduleThreadSummaryRefresh(session.id, turn.threadId);
+      if (session.status === "completed") {
+        scheduleReportRefresh(session.id);
+      }
     } catch (error) {
       session.status = "failed";
       if (turn) {
@@ -835,7 +1464,7 @@ export async function createInterviewSession({ roleId, jobId, notes = "", enable
   const job = buildTemplateDrivenJob(baseJob, resolvedTemplate);
   const mergedNotes = buildTemplateNotes(resolvedTemplate, notes);
 
-  const plan = buildDraftPlan(job, role, normalized);
+  const plan = attachTopicIdsToPlan(buildDraftPlan(job, role, normalized), normalized);
 
   const session = {
     id: createSessionId(),
@@ -851,8 +1480,11 @@ export async function createInterviewSession({ roleId, jobId, notes = "", enable
     plan,
     stageIndex: 0,
     coverage: buildCoverage(plan),
+    topicGraph: buildSessionTopicGraph(plan, normalized),
     turns: [],
+    planJob: queueBackgroundJob(createBackgroundJobState(BACKGROUND_JOB_KIND.PLAN_REFRESH)),
     report: null,
+    reportJob: createBackgroundJobState(BACKGROUND_JOB_KIND.REPORT),
     nextQuestion: null,
     topicThreads: [],
     currentThreadId: null,
@@ -864,6 +1496,7 @@ export async function createInterviewSession({ roleId, jobId, notes = "", enable
     })
   };
 
+  recomputeDerivedState(session);
   await persistSession(session);
   void processStartRun(session.id);
   return buildPublicSession(session);
@@ -901,6 +1534,7 @@ export async function answerInterviewQuestion(sessionId, answer) {
     turnIndex: pendingTurn.index
   });
 
+  recomputeDerivedState(session);
   await persistSession(session);
   void processAnswerRun(session.id, pendingTurn.index);
   return buildPublicSession(session);
@@ -910,6 +1544,23 @@ export async function answerInterviewQuestion(sessionId, answer) {
 export async function resumePendingSessions() {
   const sessions = await listSessions();
   const pending = sessions.filter((session) => session.status === "processing" && session.currentRun?.status === "running");
+  const pendingPlans = sessions.filter((session) => (
+    session.plan?.strategy === "draft_plan" &&
+    ["pending", "running"].includes(session.planJob?.status || "idle")
+  ));
+  const pendingReports = sessions.filter((session) => (
+    session.status === "completed" &&
+    !session.report &&
+    ["pending", "running"].includes(session.reportJob?.status || "idle")
+  ));
+  const pendingThreadSummaries = sessions.flatMap((session) => (
+    (session.topicThreads || [])
+      .filter((thread) => ["pending", "running"].includes(thread.summaryJob?.status || "idle"))
+      .map((thread) => ({
+        sessionId: session.id,
+        threadId: thread.id
+      }))
+  ));
 
   for (const session of pending) {
     if (session.currentRun?.kind === "start") {
@@ -925,5 +1576,17 @@ export async function resumePendingSessions() {
     }
   }
 
-  return pending.length;
+  for (const session of pendingReports) {
+    scheduleReportRefresh(session.id);
+  }
+
+  for (const session of pendingPlans) {
+    schedulePlanRefresh(session.id);
+  }
+
+  for (const job of pendingThreadSummaries) {
+    scheduleThreadSummaryRefresh(job.sessionId, job.threadId);
+  }
+
+  return pending.length + pendingPlans.length + pendingReports.length + pendingThreadSummaries.length;
 }

@@ -81,6 +81,8 @@ function normalizeQuestionResult(value) {
     strategy: String(value?.strategy || "structured_question"),
     stageId: String(value?.stageId || ""),
     topicCategory: String(value?.topicCategory || "system_design"),
+    topicId: value?.topicId ? String(value.topicId) : null,
+    topicLabel: String(value?.topicLabel || ""),
     evidenceSource: String(value?.evidenceSource || "简历结构化数据"),
     expectedSignals: Array.isArray(value?.expectedSignals) ? value.expectedSignals.map((item) => String(item)) : [],
     rationale: String(value?.rationale || ""),
@@ -121,7 +123,63 @@ function normalizeReportResult(value) {
     dimensions: Array.isArray(value?.dimensions) ? value.dimensions : [],
     strengths: Array.isArray(value?.strengths) ? value.strengths.map((item) => String(item)) : [],
     risks: Array.isArray(value?.risks) ? value.risks.map((item) => String(item)) : [],
-    nextSteps: Array.isArray(value?.nextSteps) ? value.nextSteps.map((item) => String(item)) : []
+    nextSteps: Array.isArray(value?.nextSteps) ? value.nextSteps.map((item) => String(item)) : [],
+    coverageSummary: value?.coverageSummary && typeof value.coverageSummary === "object"
+      ? {
+          plannedTopicCount: Number(value.coverageSummary.plannedTopicCount) || 0,
+          coveredTopicCount: Number(value.coverageSummary.coveredTopicCount) || 0,
+          turnCount: Number(value.coverageSummary.turnCount) || 0,
+          averageTopicScore: value.coverageSummary.averageTopicScore ?? null,
+          summary: String(value.coverageSummary.summary || "")
+        }
+      : null,
+    topicCoverage: Array.isArray(value?.topicCoverage)
+      ? value.topicCoverage.map((item) => ({
+          topicId: item?.topicId ? String(item.topicId) : null,
+          label: String(item?.label || ""),
+          category: String(item?.category || "system_design"),
+          status: String(item?.status || "idle"),
+          askCount: Number(item?.askCount) || 0,
+          averageScore: item?.averageScore ?? null,
+          stageTitles: Array.isArray(item?.stageTitles) ? item.stageTitles.map((stageTitle) => String(stageTitle)) : [],
+          evidence: Array.isArray(item?.evidence) ? item.evidence.map((evidence) => String(evidence)) : []
+        }))
+      : [],
+    evidenceHighlights: Array.isArray(value?.evidenceHighlights)
+      ? value.evidenceHighlights.map((item) => ({
+          topicId: item?.topicId ? String(item.topicId) : null,
+          topicLabel: String(item?.topicLabel || ""),
+          evidenceSource: String(item?.evidenceSource || ""),
+          score: item?.score ?? null,
+          summary: String(item?.summary || "")
+        }))
+      : []
+  };
+}
+
+// report 的图谱覆盖信息需要保持确定性，
+// 即使模型只返回旧版字段，也要用 graph 驱动的 fallback 结果补齐。
+function enrichReportResult(report, fallbackReport) {
+  return {
+    ...fallbackReport,
+    ...report,
+    summary: String(report?.summary || "").trim() || fallbackReport.summary,
+    dimensions: Array.isArray(report?.dimensions) && report.dimensions.length
+      ? report.dimensions
+      : fallbackReport.dimensions,
+    strengths: Array.isArray(report?.strengths) && report.strengths.length
+      ? report.strengths
+      : fallbackReport.strengths,
+    risks: Array.isArray(report?.risks) && report.risks.length
+      ? report.risks
+      : fallbackReport.risks,
+    nextSteps: Array.isArray(report?.nextSteps) && report.nextSteps.length
+      ? report.nextSteps
+      : fallbackReport.nextSteps,
+    coverageSummary: fallbackReport.coverageSummary,
+    topicCoverage: fallbackReport.topicCoverage,
+    evidenceHighlights: fallbackReport.evidenceHighlights,
+    _providerMeta: report?._providerMeta || null
   };
 }
 
@@ -341,6 +399,10 @@ export async function generateInterviewQuestion(context) {
       decision,
       turnCount: session.turns.length,
       history: session.turns.slice(-3),
+      topicGraph: {
+        nodes: (session.topicGraph?.nodes || []).slice(0, 12),
+        currentQuestionTopicId: session.nextQuestion?.topicId || null
+      },
       candidate: {
         profile: normalizedResume.profile,
         recentExperiences: normalizedResume.experiences.slice(0, 3),
@@ -375,21 +437,31 @@ export async function assessInterviewAnswer(context) {
 }
 
 export async function generateInterviewReport(session) {
-  return generateJson({
+  const fallbackReport = createFallbackReport(session);
+  const report = await generateJson({
     instructions: [
       "你是技术面试总结器。",
       "请输出结构化复盘报告。",
-      "输出 JSON 字段：generatedBy, summary, dimensions, strengths, risks, nextSteps。",
-      "dimensions 是数组，每项包含 category 和 averageScore。"
+      "输出 JSON 字段：generatedBy, summary, dimensions, strengths, risks, nextSteps, coverageSummary, topicCoverage, evidenceHighlights。",
+      "dimensions 是数组，每项包含 category 和 averageScore。",
+      "coverageSummary 包含 plannedTopicCount, coveredTopicCount, turnCount, averageTopicScore, summary。",
+      "topicCoverage 是数组，每项包含 topicId, label, category, status, askCount, averageScore, stageTitles, evidence。",
+      "evidenceHighlights 是数组，每项包含 topicId, topicLabel, evidenceSource, score, summary。"
     ].join("\n"),
     input: JSON.stringify({
       role: session.role,
       job: session.job,
       turns: session.turns,
-      coverage: session.coverage
+      coverage: session.coverage,
+      topicGraph: {
+        nodes: (session.topicGraph?.nodes || []).filter((node) => node.plannedCount > 0 || node.askCount > 0),
+        edges: (session.topicGraph?.edges || []).slice(0, 120)
+      },
+      topicThreads: session.topicThreads || []
     }),
-    fallbackFactory: () => createFallbackReport(session),
+    fallbackFactory: () => fallbackReport,
     normalizeResult: normalizeReportResult,
     purpose: "report"
   });
+  return enrichReportResult(report, fallbackReport);
 }
