@@ -1,14 +1,10 @@
-import path from "node:path";
 import crypto from "node:crypto";
-import fs from "node:fs/promises";
-import { config } from "../config.js";
-import { readJson, writeJson } from "../lib/fs-utils.js";
+import { createDbTemplateRepository } from "../repositories/db/db-template-repository.js";
+import { createFileTemplateRepository } from "../repositories/file/file-template-repository.js";
 
-// 模板是用户可编辑数据，保存前先做一次强归一化，
-// 保证前后端看到的结构始终一致。
-function templateFilePath(templateId) {
-  return path.join(config.templatesDir, `${templateId}.json`);
-}
+const templateRepository = createDbTemplateRepository();
+const fileTemplateRepository = createFileTemplateRepository();
+let importTemplatesPromise = null;
 
 function toStringValue(value) {
   return String(value || "").trim();
@@ -45,36 +41,41 @@ function normalizeTemplateInput(input = {}, { existingId = null } = {}) {
   return normalized;
 }
 
-function compareTemplateRecency(left, right) {
-  const leftRecent = left.recentUsedAt || "";
-  const rightRecent = right.recentUsedAt || "";
-  if (leftRecent !== rightRecent) {
-    return rightRecent.localeCompare(leftRecent);
+async function importTemplatesFromFiles() {
+  const templates = await fileTemplateRepository.list();
+  for (const template of templates) {
+    await templateRepository.importIfMissing(template);
+  }
+}
+
+async function ensureTemplatesImported() {
+  if (!importTemplatesPromise) {
+    importTemplatesPromise = importTemplatesFromFiles().catch((error) => {
+      importTemplatesPromise = null;
+      throw error;
+    });
   }
 
-  return (right.updatedAt || "").localeCompare(left.updatedAt || "");
+  await importTemplatesPromise;
 }
 
 export async function listInterviewTemplates() {
-  try {
-    const entries = await fs.readdir(config.templatesDir, { withFileTypes: true });
-    const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith(".json"));
-    const templates = await Promise.all(files.map((file) => readJson(path.join(config.templatesDir, file.name))));
-    return templates.sort(compareTemplateRecency);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  }
+  await ensureTemplatesImported();
+  return templateRepository.list();
 }
 
 export async function loadInterviewTemplate(templateId) {
-  return readJson(templateFilePath(templateId));
+  await ensureTemplatesImported();
+  const template = await templateRepository.getById(templateId);
+  if (!template) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+  return template;
 }
 
 export async function saveInterviewTemplate(input) {
-  const existing = input.id ? await loadInterviewTemplate(input.id).catch(() => null) : null;
+  await ensureTemplatesImported();
+  const existing = input.id ? await templateRepository.getById(input.id) : null;
   const normalized = normalizeTemplateInput(input, { existingId: existing?.id || null });
   const now = new Date().toISOString();
   const template = {
@@ -83,21 +84,19 @@ export async function saveInterviewTemplate(input) {
     updatedAt: now,
     recentUsedAt: existing?.recentUsedAt || null
   };
-  await writeJson(templateFilePath(template.id), template);
-  return template;
+  return templateRepository.save(template);
 }
 
 export async function deleteInterviewTemplate(templateId) {
-  await fs.rm(templateFilePath(templateId), { force: true });
+  await ensureTemplatesImported();
+  await templateRepository.archive(templateId);
 }
 
 export async function markInterviewTemplateUsed(templateId) {
-  const template = await loadInterviewTemplate(templateId);
-  const next = {
-    ...template,
-    recentUsedAt: new Date().toISOString(),
-    updatedAt: template.updatedAt || new Date().toISOString()
-  };
-  await writeJson(templateFilePath(templateId), next);
-  return next;
+  await ensureTemplatesImported();
+  const template = await templateRepository.markUsed(templateId);
+  if (!template) {
+    throw new Error(`Template not found: ${templateId}`);
+  }
+  return template;
 }

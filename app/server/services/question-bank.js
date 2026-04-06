@@ -1,6 +1,6 @@
 // 当模型不可用或输出无效时，兜底面试官会退回到这份题库。
 // 题目刻意保持简短，并优先逼近具体证据而不是空泛提问。
-const QUESTION_LIBRARY = {
+export const QUESTION_LIBRARY = {
   language_fundamentals: [
     "你在最近的项目里主要使用了 C#。如果要向一位中级工程师解释值类型、引用类型和装箱拆箱在 Unity 项目中的实际影响，你会怎么讲？",
     "当一个 Unity 项目里出现频繁 GC 抖动时，你会从 C# 语言层面优先检查哪些写法？",
