@@ -57,6 +57,32 @@ function findTopicById(topicId, normalizedResume) {
   return normalizedResume.topicInventory.find((topic) => topic.id === topicId) || null;
 }
 
+function findStageIndex(session, stage) {
+  if (!stage?.id) {
+    return -1;
+  }
+
+  return (session.plan?.stages || []).findIndex((item) => item.id === stage.id);
+}
+
+function pickNextStage(session, stage) {
+  const stages = session.plan?.stages || [];
+  if (!stages.length) {
+    return stage || null;
+  }
+
+  const currentIndex = findStageIndex(session, stage);
+  if (currentIndex >= 0 && currentIndex < stages.length - 1) {
+    return stages[currentIndex + 1];
+  }
+
+  if (currentIndex >= 0) {
+    return stages[currentIndex];
+  }
+
+  return stages[0];
+}
+
 // fallback 也尽量沿用 graph 选出来的主题，
 // 这样在模型不可用时，题目主线仍然与 policy 保持一致。
 function pickStageTopic({ session, stage, normalizedResume, decision }) {
@@ -200,6 +226,51 @@ export function createFallbackAssessment({ answer, question }) {
     followupNeeded: !mentionsTradeoff || !mentionsEvidence,
     suggestedFollowup: "你刚才提到的方案里，最关键的设计权衡是什么？如果重来一次，你会保留和修改哪些部分？",
     evidenceUsed: [question.evidenceSource]
+  };
+}
+
+// 单调用热路径兜底时，同时返回评估结果和两类候选问题，
+// 这样上层依然可以按本地 policy 选择“继续追问”还是“切到新主题”。
+export function createFallbackTurnAnalysis(context) {
+  const { session, stage, normalizedResume, question, answer } = context;
+  const assessment = createFallbackAssessment({ answer, question });
+  const followupQuestion = createFallbackQuestion({
+    session,
+    stage,
+    normalizedResume,
+    decision: {
+      targetTopicId: question?.topicId || null,
+      targetTopicCategory: question?.topicCategory || stage?.category || "",
+      targetEvidenceSource: question?.evidenceSource || null,
+      topicLabel: question?.topicLabel || question?.topicCategory || stage?.title || ""
+    }
+  });
+  const nextStage = pickNextStage(session, stage) || stage;
+  const nextTopic = pickStageTopic({
+    session,
+    stage: nextStage,
+    normalizedResume,
+    decision: {
+      targetTopicCategory: nextStage?.category || stage?.category || question?.topicCategory || ""
+    }
+  });
+  const nextTopicQuestion = createFallbackQuestion({
+    session,
+    stage: nextStage,
+    normalizedResume,
+    decision: {
+      targetTopicId: nextTopic?.id || nextTopic?.topicId || null,
+      targetTopicCategory: nextTopic?.category || nextStage?.category || stage?.category || question?.topicCategory || "",
+      targetEvidenceSource: nextTopic ? pickEvidence(nextTopic, normalizedResume) : null,
+      topicLabel: nextTopic?.label || nextStage?.title || stage?.title || question?.topicCategory || ""
+    }
+  });
+
+  return {
+    strategy: "fallback",
+    assessment,
+    followupQuestion,
+    nextTopicQuestion
   };
 }
 

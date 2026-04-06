@@ -272,6 +272,33 @@ function evaluateStopPolicy({ session, coverageGaps, threadPolicy }) {
   };
 }
 
+function evaluateAssessmentTermination(assessment) {
+  const strategy = String(assessment?.strategy || "");
+  const risks = new Set((assessment?.risks || []).map((item) => String(item)));
+  const explicitTerminationStrategy = [
+    "integrity_verification_terminated",
+    "terminate_interview",
+    "end_interview"
+  ].includes(strategy);
+  const confirmedIntegrityRisk = (
+    risks.has("resume_fraud_confirmed") ||
+    risks.has("fundamental_dishonesty")
+  );
+  const shouldTerminate = explicitTerminationStrategy || confirmedIntegrityRisk;
+
+  return {
+    shouldTerminate,
+    explicitTerminationStrategy,
+    confirmedIntegrityRisk,
+    reason: shouldTerminate
+      ? (
+          assessment?.suggestedFollowup ||
+          "Assessment marked this answer as interview-terminating."
+        )
+      : "Assessment does not require an immediate stop."
+  };
+}
+
 // 首题永远开启一个新的证据线程，
 // 先把候选人与岗位的主线映射建立起来。
 function buildStartDecision({ session, stage }) {
@@ -314,6 +341,7 @@ function buildAnswerDecision({ session, stage, turn, assessment }) {
   const currentTopicNode = getTopicNode(session, turn.question?.topicId || activeThread?.topicId || null);
   const coverageGaps = listCoverageGaps(session);
   const coverageProgress = summarizeCoverageProgress(session, coverageGaps);
+  const assessmentTermination = evaluateAssessmentTermination(assessment);
   const threadPolicy = evaluateThreadPolicy({
     session,
     activeThread,
@@ -326,6 +354,36 @@ function buildAnswerDecision({ session, stage, turn, assessment }) {
     coverageGaps,
     threadPolicy
   });
+
+  if (assessmentTermination.shouldTerminate) {
+    return {
+      strategy: "policy_v1",
+      action: "end_interview",
+      threadMode: "close",
+      shouldSearch: false,
+      rationale: assessmentTermination.reason,
+      topicLabel: currentTopicNode?.label || activeThread?.label || stage?.title || turn.question.topicCategory,
+      stopCurrentThread: true,
+      targetStageIndex: currentStageIndex,
+      targetTopicId: currentTopicNode?.id || turn.question?.topicId || activeThread?.topicId || null,
+      targetTopicLabel: currentTopicNode?.label || activeThread?.label || stage?.title || turn.question.topicCategory,
+      targetTopicCategory: currentTopicNode?.category || turn.question?.topicCategory || stage?.category || null,
+      targetEvidenceSource: turn.question?.evidenceSource || null,
+      policyTrace: {
+        coverageGaps,
+        coverageProgress,
+        selectedTopic: currentTopicNode,
+        assessmentTermination,
+        threadPolicy,
+        stopPolicy,
+        searchPolicy: {
+          shouldSearch: false,
+          reason: "Assessment already requires the interview to stop."
+        }
+      },
+      _providerMeta: policyProviderMeta()
+    };
+  }
 
   if (threadPolicy.shouldContinue && !stopPolicy.reachedHardLimit) {
     return {

@@ -4,20 +4,89 @@ import {
   createFallbackAssessment,
   createFallbackPlan,
   createFallbackQuestion,
-  createFallbackReport
+  createFallbackReport,
+  createFallbackTurnAnalysis
 } from "./fallback-interviewer.js";
+import { normalizeInterviewQuestionText } from "./question-text.js";
 
 const MOONSHOT_REQUEST_TIMEOUT_MS = 45000;
 const providerLogger = createLogger({ component: "llm-provider" });
 
 // 所有模型接入都集中在这里处理，
 // 上层只需要面对归一化后的 JSON 结果和模型元信息。
-function tryParseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
+function uniqueNonEmptyStrings(values) {
+  return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function extractBalancedJson(text) {
+  const source = String(text || "");
+  const firstBraceIndex = source.search(/[\[{]/);
+  if (firstBraceIndex < 0) {
     return null;
   }
+
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = firstBraceIndex; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      stack.push(char);
+      continue;
+    }
+
+    if (char === "}" || char === "]") {
+      const last = stack.at(-1);
+      const matched = (last === "{" && char === "}") || (last === "[" && char === "]");
+      if (!matched) {
+        return null;
+      }
+      stack.pop();
+      if (stack.length === 0) {
+        return source.slice(firstBraceIndex, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function tryParseJson(text) {
+  const raw = String(text || "").trim();
+  const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidates = uniqueNonEmptyStrings([
+    raw,
+    fencedMatch?.[1],
+    extractBalancedJson(raw)
+  ]);
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 function normalizeThinkingType() {
@@ -53,6 +122,442 @@ function buildProviderLogContext(logContext = {}) {
   );
 }
 
+function measureJsonBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value), "utf8");
+}
+
+function clipText(value, maxLength = 240) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1))}…` : text;
+}
+
+function trimStringArray(values, { itemLimit = 3, itemMaxLength = 180 } = {}) {
+  return (Array.isArray(values) ? values : [])
+    .slice(0, itemLimit)
+    .map((item) => clipText(item, itemMaxLength));
+}
+
+function trimSourceRefs(sourceRefs, limit = 2) {
+  return (Array.isArray(sourceRefs) ? sourceRefs : [])
+    .slice(0, limit)
+    .map((item) => ({
+      sourceType: item?.sourceType ? String(item.sourceType) : "",
+      sourceId: item?.sourceId ? String(item.sourceId) : ""
+    }));
+}
+
+function summarizeStageTopic(topic) {
+  return {
+    topicId: topic?.topicId ? String(topic.topicId) : null,
+    label: clipText(topic?.label || "", 120),
+    evidence: trimStringArray(topic?.evidence, {
+      itemLimit: 2,
+      itemMaxLength: 160
+    }),
+    sourceRefs: trimSourceRefs(topic?.sourceRefs, 2)
+  };
+}
+
+function summarizeRoleForQuestion(role) {
+  return {
+    id: role?.id ? String(role.id) : "",
+    name: clipText(role?.name || "", 80),
+    summary: clipText(role?.summary || "", 360),
+    tone: role?.tone ? String(role.tone) : "",
+    style: role?.style || {},
+    focusWeights: role?.focusWeights || {}
+  };
+}
+
+function summarizeJobForQuestion(job) {
+  return {
+    id: job?.id ? String(job.id) : "",
+    title: clipText(job?.title || "", 160),
+    description: clipText(job?.description || "", 720),
+    questionAreas: Array.isArray(job?.questionAreas) ? job.questionAreas.slice(0, 6) : [],
+    mustHave: trimStringArray(job?.mustHave, {
+      itemLimit: 5,
+      itemMaxLength: 140
+    }),
+    niceToHave: trimStringArray(job?.niceToHave, {
+      itemLimit: 3,
+      itemMaxLength: 140
+    })
+  };
+}
+
+function summarizeStageForQuestion(stage) {
+  return {
+    id: stage?.id ? String(stage.id) : "",
+    category: stage?.category ? String(stage.category) : "",
+    title: clipText(stage?.title || "", 100),
+    goal: clipText(stage?.goal || "", 220),
+    promptHint: clipText(stage?.promptHint || "", 220),
+    targetTopics: (Array.isArray(stage?.targetTopics) ? stage.targetTopics : [])
+      .slice(0, 3)
+      .map(summarizeStageTopic)
+  };
+}
+
+function summarizeDecisionForQuestion(decision) {
+  return {
+    action: decision?.action ? String(decision.action) : "",
+    rationale: clipText(decision?.rationale || "", 260),
+    threadId: decision?.threadId ? String(decision.threadId) : null,
+    threadMode: decision?.threadMode ? String(decision.threadMode) : "",
+    stopCurrentThread: Boolean(decision?.stopCurrentThread),
+    targetStageIndex: Number.isFinite(Number(decision?.targetStageIndex))
+      ? Number(decision.targetStageIndex)
+      : null,
+    targetTopicId: decision?.targetTopicId ? String(decision.targetTopicId) : null,
+    targetTopicLabel: clipText(decision?.targetTopicLabel || decision?.topicLabel || "", 120),
+    targetTopicCategory: decision?.targetTopicCategory ? String(decision.targetTopicCategory) : "",
+    targetEvidenceSource: clipText(decision?.targetEvidenceSource || "", 120)
+  };
+}
+
+function summarizeAssessmentForQuestion(assessment) {
+  if (!assessment) {
+    return null;
+  }
+
+  return {
+    strategy: assessment?.strategy ? String(assessment.strategy) : "",
+    score: Number.isFinite(Number(assessment?.score)) ? Number(assessment.score) : null,
+    confidence: assessment?.confidence ? String(assessment.confidence) : "",
+    followupNeeded: Boolean(assessment?.followupNeeded),
+    strengths: trimStringArray(assessment?.strengths, {
+      itemLimit: 2,
+      itemMaxLength: 140
+    }),
+    risks: trimStringArray(assessment?.risks, {
+      itemLimit: 3,
+      itemMaxLength: 140
+    }),
+    suggestedFollowup: clipText(assessment?.suggestedFollowup || "", 220)
+  };
+}
+
+function summarizeTurnForQuestion(turn) {
+  return {
+    index: Number.isFinite(Number(turn?.index)) ? Number(turn.index) : null,
+    question: {
+      topicId: turn?.question?.topicId ? String(turn.question.topicId) : null,
+      topicLabel: clipText(turn?.question?.topicLabel || "", 120),
+      topicCategory: turn?.question?.topicCategory ? String(turn.question.topicCategory) : "",
+      evidenceSource: clipText(turn?.question?.evidenceSource || "", 120),
+      text: clipText(turn?.question?.text || "", 360)
+    },
+    answer: clipText(turn?.answer || "", 420),
+    assessment: summarizeAssessmentForQuestion(turn?.assessment)
+  };
+}
+
+function summarizeTopicNodeForQuestion(node) {
+  return {
+    id: node?.id ? String(node.id) : "",
+    label: clipText(node?.label || "", 120),
+    category: node?.category ? String(node.category) : "",
+    status: node?.status ? String(node.status) : "",
+    plannedCount: Number(node?.plannedCount || 0),
+    askCount: Number(node?.askCount || 0),
+    averageScore: node?.averageScore ?? null,
+    lastScore: node?.lastScore ?? null,
+    currentQuestion: Boolean(node?.currentQuestion),
+    stageTitles: trimStringArray(node?.stageTitles, {
+      itemLimit: 2,
+      itemMaxLength: 80
+    }),
+    evidence: trimStringArray(node?.evidence, {
+      itemLimit: 2,
+      itemMaxLength: 120
+    })
+  };
+}
+
+function summarizeExperienceForQuestion(experience) {
+  return {
+    id: experience?.id ? String(experience.id) : "",
+    company: clipText(experience?.company || "", 80),
+    role: clipText(experience?.role || "", 80),
+    summary: clipText(experience?.summary || "", 220),
+    bullets: trimStringArray(experience?.bullets, {
+      itemLimit: 2,
+      itemMaxLength: 160
+    })
+  };
+}
+
+function summarizeTopicForQuestion(topic) {
+  return {
+    id: topic?.id ? String(topic.id) : "",
+    label: clipText(topic?.label || "", 120),
+    category: topic?.category ? String(topic.category) : "",
+    evidence: trimStringArray(topic?.evidence, {
+      itemLimit: 2,
+      itemMaxLength: 120
+    }),
+    sourceRefs: trimSourceRefs(topic?.sourceRefs, 2)
+  };
+}
+
+function pickQuestionPromptNodes(session, decision) {
+  const graphNodes = session.topicGraph?.nodes || [];
+  const preferredIds = new Set([
+    decision?.targetTopicId,
+    session.currentThreadId,
+    session.nextQuestion?.topicId,
+    ...session.turns.slice(-3).map((turn) => turn.question?.topicId)
+  ].filter(Boolean));
+
+  const exactMatches = graphNodes.filter((node) => preferredIds.has(node.id));
+  const stageMatches = graphNodes
+    .filter((node) => (
+      !preferredIds.has(node.id) &&
+      node.category === decision?.targetTopicCategory &&
+      (node.plannedCount > 0 || node.askCount > 0)
+    ))
+    .sort((left, right) => (
+      (right.plannedCount || 0) - (left.plannedCount || 0) ||
+      (right.askCount || 0) - (left.askCount || 0)
+    ));
+
+  return [...exactMatches, ...stageMatches]
+    .slice(0, 6)
+    .map(summarizeTopicNodeForQuestion);
+}
+
+function buildQuestionPromptPayload(context) {
+  const { session, stage, normalizedResume, decision } = context;
+  const sections = {
+    role: summarizeRoleForQuestion(session.role),
+    job: summarizeJobForQuestion(session.job),
+    stage: summarizeStageForQuestion(stage),
+    decision: summarizeDecisionForQuestion(decision),
+    turnContext: {
+      turnCount: session.turns.length,
+      history: session.turns.slice(-2).map(summarizeTurnForQuestion)
+    },
+    topicGraph: {
+      nodes: pickQuestionPromptNodes(session, decision),
+      currentQuestionTopicId: session.nextQuestion?.topicId || null
+    },
+    candidate: {
+      profile: {
+        name: clipText(normalizedResume?.profile?.name || "", 80),
+        title: clipText(normalizedResume?.profile?.title || "", 120),
+        estimatedYearsExperience: normalizedResume?.profile?.estimatedYearsExperience ?? null
+      },
+      recentExperiences: (normalizedResume?.experiences || [])
+        .slice(0, 2)
+        .map(summarizeExperienceForQuestion),
+      topTopics: (normalizedResume?.topicInventory || [])
+        .filter((topic) => (
+          topic.id === decision?.targetTopicId ||
+          topic.category === decision?.targetTopicCategory
+        ))
+        .slice(0, 6)
+        .map(summarizeTopicForQuestion)
+    }
+  };
+
+  const sectionBytes = Object.fromEntries(
+    Object.entries(sections).map(([key, value]) => [key, measureJsonBytes(value)])
+  );
+  const largestSections = Object.entries(sectionBytes)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4)
+    .map(([name, bytes]) => ({ name, bytes }));
+
+  return {
+    input: JSON.stringify(sections),
+    diagnostics: {
+      totalBytes: measureJsonBytes(sections),
+      sectionBytes,
+      largestSections
+    }
+  };
+}
+
+function summarizeQuestionForPrompt(question) {
+  return {
+    stageId: question?.stageId ? String(question.stageId) : "",
+    topicId: question?.topicId ? String(question.topicId) : null,
+    topicLabel: clipText(question?.topicLabel || "", 120),
+    topicCategory: question?.topicCategory ? String(question.topicCategory) : "",
+    evidenceSource: clipText(question?.evidenceSource || "", 120),
+    expectedSignals: trimStringArray(question?.expectedSignals, {
+      itemLimit: 4,
+      itemMaxLength: 120
+    }),
+    text: clipText(question?.text || "", 360)
+  };
+}
+
+function summarizeRoleForTurnAnalysis(role) {
+  const sortedFocus = Object.entries(role?.focusWeights || {})
+    .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))
+    .slice(0, 3)
+    .map(([category]) => category);
+
+  return {
+    name: clipText(role?.name || "", 60),
+    summary: clipText(role?.summary || "", 140),
+    focusCategories: sortedFocus
+  };
+}
+
+function summarizeJobForTurnAnalysis(job) {
+  return {
+    title: clipText(job?.title || "", 80),
+    questionAreas: trimStringArray(job?.questionAreas, {
+      itemLimit: 3,
+      itemMaxLength: 50
+    }),
+    mustHave: trimStringArray(job?.mustHave, {
+      itemLimit: 2,
+      itemMaxLength: 70
+    })
+  };
+}
+
+function summarizeStageForTurnAnalysis(stage) {
+  return {
+    id: stage?.id ? String(stage.id) : "",
+    category: stage?.category ? String(stage.category) : "",
+    title: clipText(stage?.title || "", 60),
+    goal: clipText(stage?.goal || "", 80),
+    targetTopicLabels: (Array.isArray(stage?.targetTopics) ? stage.targetTopics : [])
+      .slice(0, 2)
+      .map((topic) => clipText(topic?.label || "", 60))
+      .filter(Boolean)
+  };
+}
+
+function summarizeHistoryTurnForTurnAnalysis(turn) {
+  return {
+    index: Number.isFinite(Number(turn?.index)) ? Number(turn.index) : null,
+    topicLabel: clipText(turn?.question?.topicLabel || "", 80),
+    topicCategory: turn?.question?.topicCategory ? String(turn.question.topicCategory) : "",
+    score: Number.isFinite(Number(turn?.assessment?.score)) ? Number(turn.assessment.score) : null,
+    answer: clipText(turn?.answer || "", 120)
+  };
+}
+
+function summarizeTopicNodeForTurnAnalysis(node) {
+  return {
+    id: node?.id ? String(node.id) : "",
+    label: clipText(node?.label || "", 80),
+    category: node?.category ? String(node.category) : "",
+    status: node?.status ? String(node.status) : "",
+    plannedCount: Number(node?.plannedCount || 0),
+    askCount: Number(node?.askCount || 0),
+    lastScore: node?.lastScore ?? null
+  };
+}
+
+function pickTurnAnalysisPromptNodes(session, currentQuestion, stage) {
+  const graphNodes = session.topicGraph?.nodes || [];
+  const preferredIds = new Set([
+    currentQuestion?.topicId,
+    session.currentThreadId,
+    ...session.turns.slice(-2).map((turn) => turn.question?.topicId)
+  ].filter(Boolean));
+
+  const exactMatches = graphNodes.filter((node) => preferredIds.has(node.id));
+  const categoryMatches = graphNodes
+    .filter((node) => (
+      !preferredIds.has(node.id) &&
+      node.category === (currentQuestion?.topicCategory || stage?.category) &&
+      (node.plannedCount > 0 || node.askCount > 0)
+    ))
+    .sort((left, right) => (
+      (left.askCount || 0) - (right.askCount || 0) ||
+      (right.plannedCount || 0) - (left.plannedCount || 0)
+    ));
+
+  return [...exactMatches, ...categoryMatches]
+    .slice(0, 3)
+    .map(summarizeTopicNodeForTurnAnalysis);
+}
+
+function summarizeCandidateForTurnAnalysis(normalizedResume, question, stage) {
+  return {
+    profile: {
+      title: clipText(normalizedResume?.profile?.title || "", 80),
+      estimatedYearsExperience: normalizedResume?.profile?.estimatedYearsExperience ?? null
+    },
+    recentExperiences: (normalizedResume?.experiences || [])
+      .slice(0, 1)
+      .map((experience) => ({
+        company: clipText(experience?.company || "", 50),
+        role: clipText(experience?.role || "", 50),
+        summary: clipText(experience?.summary || "", 80)
+      })),
+    relevantTopics: (normalizedResume?.topicInventory || [])
+      .filter((topic) => (
+        topic.id === question?.topicId ||
+        topic.category === question?.topicCategory ||
+        topic.category === stage?.category
+      ))
+      .slice(0, 2)
+      .map((topic) => ({
+        id: topic?.id ? String(topic.id) : "",
+        label: clipText(topic?.label || "", 60),
+        category: topic?.category ? String(topic.category) : "",
+        evidence: trimStringArray(topic?.evidence, {
+          itemLimit: 1,
+          itemMaxLength: 70
+        })
+      }))
+  };
+}
+
+function buildTurnAnalysisPromptPayload(context) {
+  const { session, stage, normalizedResume, question, answer } = context;
+  const sections = {
+    role: summarizeRoleForTurnAnalysis(session.role),
+    job: summarizeJobForTurnAnalysis(session.job),
+    stage: summarizeStageForTurnAnalysis(stage),
+    currentTurn: {
+      question: {
+        topicId: question?.topicId ? String(question.topicId) : null,
+        topicLabel: clipText(question?.topicLabel || "", 60),
+        topicCategory: question?.topicCategory ? String(question.topicCategory) : "",
+        evidenceSource: clipText(question?.evidenceSource || "", 70),
+        text: clipText(question?.text || "", 120)
+      },
+      answer: clipText(answer || "", 220)
+    },
+    turnContext: {
+      turnCount: session.turns.length,
+      history: session.turns.slice(-1).map(summarizeHistoryTurnForTurnAnalysis)
+    },
+    topicGraph: {
+      currentTopicId: question?.topicId || null,
+      nearbyNodes: pickTurnAnalysisPromptNodes(session, question, stage)
+    },
+    candidate: summarizeCandidateForTurnAnalysis(normalizedResume, question, stage)
+  };
+
+  const sectionBytes = Object.fromEntries(
+    Object.entries(sections).map(([key, value]) => [key, measureJsonBytes(value)])
+  );
+  const largestSections = Object.entries(sectionBytes)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4)
+    .map(([name, bytes]) => ({ name, bytes }));
+
+  return {
+    input: JSON.stringify(sections),
+    diagnostics: {
+      totalBytes: measureJsonBytes(sections),
+      sectionBytes,
+      largestSections
+    }
+  };
+}
+
 // 不同 phase 使用不同的运行参数。
 // fast 模式下优先牺牲思考深度来换取 plan/question 的低延迟。
 function getPhaseModelStrategy(purpose) {
@@ -61,6 +566,7 @@ function getPhaseModelStrategy(purpose) {
     case "plan":
     case "deliberate":
     case "question":
+    case "answer_turn":
       return {
         thinkingType: fastMode ? "disabled" : normalizeThinkingType(),
         temperature: fastMode ? 0.6 : (normalizeThinkingType() === "enabled" ? 1.0 : 0.6),
@@ -94,11 +600,48 @@ function normalizeQuestionResult(value) {
     stageId: String(value?.stageId || ""),
     topicCategory: String(value?.topicCategory || "system_design"),
     topicId: value?.topicId ? String(value.topicId) : null,
-    topicLabel: String(value?.topicLabel || ""),
-    evidenceSource: String(value?.evidenceSource || "简历结构化数据"),
-    expectedSignals: Array.isArray(value?.expectedSignals) ? value.expectedSignals.map((item) => String(item)) : [],
-    rationale: String(value?.rationale || ""),
-    text: String(value?.text || "请结合你的实际项目经验详细回答。")
+    topicLabel: clipText(value?.topicLabel || "", 120),
+    evidenceSource: clipText(value?.evidenceSource || "简历结构化数据", 140),
+    expectedSignals: trimStringArray(value?.expectedSignals, {
+      itemLimit: 2,
+      itemMaxLength: 100
+    }),
+    rationale: clipText(value?.rationale || "", 160),
+    text: normalizeInterviewQuestionText(value?.text || "请结合你的实际项目经验详细回答。")
+  };
+}
+
+function normalizeOptionalQuestionResult(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const text = normalizeInterviewQuestionText(value?.text || "", {
+    maxQuestions: 2,
+    maxLength: 72
+  });
+  if (!String(text || "").trim()) {
+    return null;
+  }
+
+  return {
+    topicId: value?.topicId ? String(value.topicId) : null,
+    topicLabel: clipText(value?.topicLabel || "", 60),
+    topicCategory: String(value?.topicCategory || "system_design"),
+    evidenceSource: clipText(value?.evidenceSource || "简历结构化数据", 80),
+    text
+  };
+}
+
+function normalizeTurnAssessmentResult(value) {
+  const normalized = normalizeAssessmentResult(value);
+  return {
+    score: normalized.score,
+    confidence: normalized.confidence,
+    strengths: normalized.strengths,
+    risks: normalized.risks,
+    followupNeeded: normalized.followupNeeded,
+    suggestedFollowup: clipText(normalized.suggestedFollowup || "", 60)
   };
 }
 
@@ -111,11 +654,20 @@ function normalizeAssessmentResult(value) {
     strategy: String(value?.strategy || "structured_assessment"),
     score: clamp(normalizedScore, 1, 5),
     confidence: ["low", "medium", "high"].includes(value?.confidence) ? value.confidence : "medium",
-    strengths: Array.isArray(value?.strengths) ? value.strengths.map((item) => String(item)) : [],
-    risks: Array.isArray(value?.risks) ? value.risks.map((item) => String(item)) : [],
+    strengths: trimStringArray(value?.strengths, {
+      itemLimit: 1,
+      itemMaxLength: 70
+    }),
+    risks: trimStringArray(value?.risks, {
+      itemLimit: 1,
+      itemMaxLength: 70
+    }),
     followupNeeded: Boolean(value?.followupNeeded),
-    suggestedFollowup: String(value?.suggestedFollowup || "请进一步说明你的具体职责、权衡和验证方式。"),
-    evidenceUsed: Array.isArray(value?.evidenceUsed) ? value.evidenceUsed.map((item) => String(item)) : []
+    suggestedFollowup: clipText(value?.suggestedFollowup || "请进一步说明你的具体职责、权衡和验证方式。", 90),
+    evidenceUsed: trimStringArray(value?.evidenceUsed, {
+      itemLimit: 1,
+      itemMaxLength: 70
+    })
   };
 }
 
@@ -166,6 +718,18 @@ function normalizeReportResult(value) {
           summary: String(item?.summary || "")
         }))
       : []
+  };
+}
+
+function normalizeTurnAnalysisResult(value) {
+  return {
+    assessment: normalizeTurnAssessmentResult(value?.assessment),
+    followupQuestion: normalizeOptionalQuestionResult(
+      value?.followupQuestion || value?.followup || value?.followupDraft
+    ),
+    nextTopicQuestion: normalizeOptionalQuestionResult(
+      value?.nextTopicQuestion || value?.nextQuestion || value?.nextTopicDraft
+    )
   };
 }
 
@@ -372,7 +936,8 @@ async function generateJson({
   enableWebSearch = false,
   normalizeResult = (value) => value,
   purpose = "default",
-  logContext = {}
+  logContext = {},
+  inputDiagnostics = null
 }) {
   const logger = providerLogger.child(buildProviderLogContext(logContext));
   const strategy = getPhaseModelStrategy(purpose);
@@ -383,8 +948,19 @@ async function generateJson({
     thinkingType: enableWebSearch ? "disabled" : strategy.thinkingType,
     toolMode: Boolean(enableWebSearch),
     inputChars: String(input || "").length,
-    inputPreview: config.logPayloadMode === "summary" ? previewText(input) : undefined
+    inputPreview: config.logPayloadMode === "summary" ? previewText(input) : undefined,
+    inputTotalBytes: inputDiagnostics?.totalBytes,
+    inputLargestSections: inputDiagnostics?.largestSections
   });
+
+  if (inputDiagnostics) {
+    logger.info("provider.input.diagnostics", {
+      purpose,
+      totalBytes: inputDiagnostics.totalBytes,
+      sectionBytes: inputDiagnostics.sectionBytes,
+      largestSections: inputDiagnostics.largestSections
+    });
+  }
 
   // 兜底路径是正式运行路径的一部分，而不只是异常时的补救逻辑。
   if (config.aiProvider !== "moonshot" || !config.moonshotApiKey) {
@@ -393,7 +969,7 @@ async function generateJson({
       reason: "provider_unavailable",
       provider: config.aiProvider
     });
-    const fallbackResult = withProviderMeta(fallbackFactory(), {
+    const fallbackResult = withProviderMeta(normalizeResult(fallbackFactory()), {
       provider: "fallback",
       model: "fallback",
       purpose,
@@ -424,7 +1000,7 @@ async function generateJson({
         reason: "invalid_json",
         contentPreview: previewText(message?.content || "")
       });
-      const fallbackResult = withProviderMeta(fallbackFactory(), {
+      const fallbackResult = withProviderMeta(normalizeResult(fallbackFactory()), {
         provider: "fallback",
         model: "fallback",
         purpose,
@@ -457,7 +1033,7 @@ async function generateJson({
       purpose,
       reason: "provider_exception"
     });
-    const fallbackResult = withProviderMeta(fallbackFactory(), {
+    const fallbackResult = withProviderMeta(normalizeResult(fallbackFactory()), {
       provider: "fallback",
       model: "fallback",
       purpose,
@@ -505,35 +1081,28 @@ export async function buildInterviewPlan(context) {
 
 export async function generateInterviewQuestion(context) {
   const { session, stage, normalizedResume, enableWebSearch, decision } = context;
+  const promptPayload = buildQuestionPromptPayload({
+    session,
+    stage,
+    normalizedResume,
+    decision
+  });
+
   return generateJson({
     instructions: [
       "你是一个严格的技术面试官。",
       "请基于当前阶段、历史问答和候选人简历生成下一道问题。",
       "问题必须紧扣证据，不要泛泛而谈。",
+      "text 字段最多包含 2 个连续问句，优先 1 个主问题 + 1 个补充限定。",
       "输出 JSON 字段：strategy, stageId, topicCategory, evidenceSource, expectedSignals, rationale, text。"
     ].join("\n"),
-    input: JSON.stringify({
-      role: session.role,
-      job: session.job,
-      stage,
-      decision,
-      turnCount: session.turns.length,
-      history: session.turns.slice(-3),
-      topicGraph: {
-        nodes: (session.topicGraph?.nodes || []).slice(0, 12),
-        currentQuestionTopicId: session.nextQuestion?.topicId || null
-      },
-      candidate: {
-        profile: normalizedResume.profile,
-        recentExperiences: normalizedResume.experiences.slice(0, 3),
-        topTopics: normalizedResume.topicInventory.slice(0, 10)
-      }
-    }),
+    input: promptPayload.input,
     fallbackFactory: () => createFallbackQuestion(context),
     enableWebSearch,
     normalizeResult: normalizeQuestionResult,
     purpose: "question",
-    logContext: context.logContext
+    logContext: context.logContext,
+    inputDiagnostics: promptPayload.diagnostics
   });
 }
 
@@ -555,6 +1124,32 @@ export async function assessInterviewAnswer(context) {
     normalizeResult: normalizeAssessmentResult,
     purpose: "assessment",
     logContext: context.logContext
+  });
+}
+
+export async function analyzeInterviewTurn(context) {
+  const promptPayload = buildTurnAnalysisPromptPayload(context);
+
+  return generateJson({
+    instructions: [
+      "你是一个严格的技术面试官。",
+      "请先评估当前回答，再同时草拟两个候选问题。",
+      "第一个候选问题用于继续深挖当前证据线程。",
+      "第二个候选问题用于切换到下一个值得覆盖的新主题。",
+      "你只负责评估与表述，不负责决定是否结束面试，结束决策由上层策略处理。",
+      "输出必须是一个 JSON 对象，且顶层只包含 assessment, followupQuestion, nextTopicQuestion。",
+      "assessment 只包含：score, confidence, followupNeeded, strengths, risks, suggestedFollowup。",
+      "strengths 和 risks 最多各 1 条短句，suggestedFollowup 尽量不超过 18 个字。",
+      "followupQuestion 与 nextTopicQuestion 只包含：text, topicId, topicLabel, topicCategory, evidenceSource。",
+      "question.text 必须是中文面试题，不超过 80 个字，最多 2 个连续问句，不要列表。",
+      "不要输出 strategy、stageId、expectedSignals、rationale、evidenceUsed、null、Markdown 或额外说明。"
+    ].join("\n"),
+    input: promptPayload.input,
+    fallbackFactory: () => createFallbackTurnAnalysis(context),
+    normalizeResult: normalizeTurnAnalysisResult,
+    purpose: "answer_turn",
+    logContext: context.logContext,
+    inputDiagnostics: promptPayload.diagnostics
   });
 }
 

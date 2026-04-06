@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { createLogger } from "../lib/logger.js";
 import { loadInterviewCatalog, findJob, findRole } from "./catalog-loader.js";
 import {
-  assessInterviewAnswer,
+  analyzeInterviewTurn,
   buildInterviewPlan,
   generateInterviewQuestion,
   generateInterviewReport
@@ -12,15 +12,28 @@ import { loadResumePackage } from "./resume-loader.js";
 import { publishSession } from "./session-events.js";
 import { createSessionId, listSessions, loadSession, saveSession } from "./session-store.js";
 import { listInterviewTemplates, loadInterviewTemplate, markInterviewTemplateUsed } from "./template-service.js";
+import { createFallbackQuestion } from "./fallback-interviewer.js";
+import { normalizeInterviewQuestionText } from "./question-text.js";
 
 const RUN_PHASES = ["observe", "deliberate", "decide", "execute", "feedback"];
 const inFlightRuns = new Set();
 const pendingBackgroundJobs = new Set();
+const activeBackgroundProviderJobs = new Set();
 const interviewLogger = createLogger({ component: "interview-service" });
 const BACKGROUND_JOB_KIND = {
   PLAN_REFRESH: "plan_refresh",
   REPORT: "report",
   THREAD_SUMMARY: "thread_summary"
+};
+const BACKGROUND_JOB_DEFAULT_DELAY_MS = {
+  plan_refresh: 45000,
+  report: 1500,
+  thread_summary: 0
+};
+const BACKGROUND_JOB_RETRY_DELAY_MS = {
+  plan_refresh: 20000,
+  report: 3000,
+  thread_summary: 1500
 };
 
 // interview-service 是运行时状态机的唯一入口。
@@ -83,6 +96,17 @@ function buildModelStrategyInfo(providerMeta) {
     thinkingType: providerMeta.thinkingType || "disabled",
     toolMode: Boolean(providerMeta.toolMode),
     label: providerMeta.strategyLabel || `${providerMeta.purpose || "default"} / thinking ${thinkingEnabled ? "enabled" : "disabled"}`
+  };
+}
+
+function createLocalQuestionProviderMeta(label = "deterministic local question") {
+  return {
+    provider: "local",
+    model: "question-fallback-v1",
+    purpose: "question",
+    thinkingType: "disabled",
+    toolMode: false,
+    strategyLabel: label
   };
 }
 
@@ -641,6 +665,134 @@ function backgroundJobKey(sessionId, kind, targetId = null) {
   return `${sessionId}:${kind}:${targetId || "session"}`;
 }
 
+function isProviderBackedBackgroundJob(kind) {
+  return kind === BACKGROUND_JOB_KIND.PLAN_REFRESH || kind === BACKGROUND_JOB_KIND.REPORT;
+}
+
+function resolveBackgroundJobDelay(kind, delayMs) {
+  if (Number.isFinite(delayMs)) {
+    return Math.max(0, Number(delayMs));
+  }
+
+  return BACKGROUND_JOB_DEFAULT_DELAY_MS[kind] ?? 0;
+}
+
+function getBackgroundJobRetryDelay(kind) {
+  return BACKGROUND_JOB_RETRY_DELAY_MS[kind] ?? 1500;
+}
+
+function resolveBackgroundProviderDeferDelay(session, kind, jobKey) {
+  if (!isProviderBackedBackgroundJob(kind)) {
+    return null;
+  }
+
+  if (inFlightRuns.size > 0) {
+    return 10000;
+  }
+
+  if (activeBackgroundProviderJobs.size > 0 && !activeBackgroundProviderJobs.has(jobKey)) {
+    return 15000;
+  }
+
+  if (kind === BACKGROUND_JOB_KIND.PLAN_REFRESH && session.status !== "completed") {
+    const updatedAt = Date.parse(session.updatedAt || session.createdAt || "");
+    const idleMs = Number.isFinite(updatedAt) ? Date.now() - updatedAt : 0;
+    const graceMs = (session.turns?.length || 0) > 0 ? 45000 : 60000;
+    if (idleMs < graceMs) {
+      return Math.max(5000, graceMs - idleMs + 1000);
+    }
+  }
+
+  return null;
+}
+
+function runWithBackgroundProviderLock(jobKey, task) {
+  activeBackgroundProviderJobs.add(jobKey);
+  return Promise.resolve()
+    .then(task)
+    .finally(() => {
+      activeBackgroundProviderJobs.delete(jobKey);
+    });
+}
+
+// provider 型后台任务必须给前台交互让路。
+// 这里既限制并发，也为 plan refresh 增加一个活跃期宽限，避免和刚回答后的热路径抢模型。
+function shouldDeferBackgroundProviderJob(session, kind, jobKey) {
+  return Number.isFinite(resolveBackgroundProviderDeferDelay(session, kind, jobKey));
+}
+
+function createQuietBackgroundRetry(kind, retryDelayMs = null) {
+  return {
+    shouldRetry: true,
+    retryDelayMs: Number.isFinite(retryDelayMs) ? Number(retryDelayMs) : getBackgroundJobRetryDelay(kind),
+    quiet: true
+  };
+}
+
+// 后台任务很多时候只是“现在还不该跑”，例如前台仍在 processing、
+// plan refresh 仍处于静默窗口、或 report 还在等 thread summary 完成。
+// 这些情况不应该进入正式 span，否则日志里会出现大量空转的 started/completed。
+function resolveBackgroundJobPreflight(session, kind, targetId, jobKey) {
+  if (kind === BACKGROUND_JOB_KIND.PLAN_REFRESH) {
+    if (session.plan?.strategy !== "draft_plan") {
+      return { shouldSkip: true };
+    }
+
+    if (session.status === "processing" || session.currentRun?.status === "running") {
+      return createQuietBackgroundRetry(kind, 12000);
+    }
+
+    const deferDelayMs = resolveBackgroundProviderDeferDelay(session, kind, jobKey);
+    if (Number.isFinite(deferDelayMs)) {
+      return createQuietBackgroundRetry(kind, deferDelayMs);
+    }
+
+    return null;
+  }
+
+  if (kind === BACKGROUND_JOB_KIND.REPORT) {
+    if (session.status !== "completed") {
+      return { shouldSkip: true };
+    }
+
+    if (session.report && getSessionJobState(session, kind)?.status === "completed") {
+      return { shouldSkip: true };
+    }
+
+    if (session.status === "processing" || session.currentRun?.status === "running") {
+      return createQuietBackgroundRetry(kind, 10000);
+    }
+
+    const pendingThreadSummary = (session.topicThreads || []).some((thread) => {
+      const status = getThreadSummaryJobState(thread)?.status || "idle";
+      return status === "pending" || status === "running";
+    });
+    if (pendingThreadSummary) {
+      return createQuietBackgroundRetry(kind, 5000);
+    }
+
+    const deferDelayMs = resolveBackgroundProviderDeferDelay(session, kind, jobKey);
+    if (Number.isFinite(deferDelayMs)) {
+      return createQuietBackgroundRetry(kind, deferDelayMs);
+    }
+
+    return null;
+  }
+
+  if (kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY) {
+    const thread = getThreadById(session, targetId);
+    if (!thread) {
+      return { shouldSkip: true };
+    }
+
+    if (session.status === "processing" || session.currentRun?.status === "running") {
+      return createQuietBackgroundRetry(kind, 3000);
+    }
+  }
+
+  return null;
+}
+
 function getSessionJobState(session, kind) {
   if (kind === BACKGROUND_JOB_KIND.PLAN_REFRESH) {
     session.planJob ||= createBackgroundJobState(kind);
@@ -776,6 +928,104 @@ function buildPublicSession(session) {
 
 // thread 表示“当前正在深挖的一条证据线”，
 // 它和 stage 分离存在，才能显式表达追问与切题。
+function canReusePrecomputedQuestion(question, decision) {
+  if (!question || !String(question.text || "").trim()) {
+    return false;
+  }
+
+  if (!decision?.targetTopicId || !question.topicId) {
+    if (!decision?.targetTopicCategory || !question.topicCategory) {
+      return true;
+    }
+
+    return question.topicCategory === decision.targetTopicCategory;
+  }
+
+  return question.topicId === decision.targetTopicId;
+}
+
+// answer_turn 已经把“评估 + 候选追问 / 候选切题”放进同一次模型往返里。
+// 如果切题草稿没有和本地 policy 的目标完全对齐，这里直接按本地决策兜底出题，
+// 避免再次触发 question provider 调用，把回答热路径稳定压成单次远程请求。
+function buildDeterministicQuestion({ session, stage, normalizedResume, decision, turnAnalysis }) {
+  const preferredDraft = decision?.action === "ask_followup"
+    ? turnAnalysis?.followupQuestion
+    : (turnAnalysis?.nextTopicQuestion || turnAnalysis?.followupQuestion);
+  const fallbackQuestion = createFallbackQuestion({
+    session,
+    stage,
+    normalizedResume,
+    decision
+  });
+  const sameCategoryDraft = preferredDraft?.topicCategory && decision?.targetTopicCategory
+    ? preferredDraft.topicCategory === decision.targetTopicCategory
+    : false;
+
+  return {
+    ...fallbackQuestion,
+    strategy: preferredDraft?.strategy
+      ? `${preferredDraft.strategy}_deterministic_fallback`
+      : "deterministic_local_question",
+    expectedSignals: sameCategoryDraft && Array.isArray(preferredDraft?.expectedSignals) && preferredDraft.expectedSignals.length
+      ? preferredDraft.expectedSignals
+      : fallbackQuestion.expectedSignals,
+    rationale: String(preferredDraft?.rationale || "").trim() || fallbackQuestion.rationale,
+    text: normalizeInterviewQuestionText(preferredDraft?.text || fallbackQuestion.text),
+    _providerMeta: createLocalQuestionProviderMeta(
+      sameCategoryDraft
+        ? "deterministic local question with draft hints"
+        : "deterministic local question"
+    )
+  };
+}
+
+function pickQuestionExecutionPath({ decision, turnAnalysis, session, stage, normalizedResume }) {
+  if (decision?.shouldSearch) {
+    return {
+      question: null,
+      source: "live_question_call"
+    };
+  }
+
+  const precomputedQuestion = pickPrecomputedQuestion(turnAnalysis, decision);
+  if (precomputedQuestion) {
+    precomputedQuestion._providerMeta = turnAnalysis?._providerMeta;
+    return {
+      question: precomputedQuestion,
+      source: "precomputed_turn_analysis"
+    };
+  }
+
+  return {
+    question: buildDeterministicQuestion({
+      session,
+      stage,
+      normalizedResume,
+      decision,
+      turnAnalysis
+    }),
+    source: "deterministic_local_question"
+  };
+}
+
+function pickPrecomputedQuestion(turnAnalysis, decision) {
+  if (!turnAnalysis || decision?.action === "end_interview") {
+    return null;
+  }
+
+  const preferred = decision.action === "ask_followup"
+    ? turnAnalysis.followupQuestion
+    : (turnAnalysis.nextTopicQuestion || turnAnalysis.followupQuestion);
+
+  if (!canReusePrecomputedQuestion(preferred, decision)) {
+    return null;
+  }
+
+  return {
+    ...preferred
+  };
+}
+
 function createThread({ category, label, evidenceSource, stageId }) {
   return {
     id: `thread_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -952,7 +1202,7 @@ function buildPlanContext(session, normalizedResume) {
 
 // 正式 plan 刷新放到后台执行，
 // 避免首题延迟被“计划质量工作”拖慢。
-function schedulePlanRefresh(sessionId, delayMs = 0) {
+function schedulePlanRefresh(sessionId, delayMs = null) {
   scheduleBackgroundJob({
     sessionId,
     kind: BACKGROUND_JOB_KIND.PLAN_REFRESH,
@@ -961,36 +1211,45 @@ function schedulePlanRefresh(sessionId, delayMs = 0) {
 }
 
 async function refreshDraftPlanJob({ sessionId }) {
+  const jobId = backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH);
   const session = await loadSession(sessionId, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+    jobId
   });
   if (session.plan?.strategy !== "draft_plan") {
     return false;
   }
 
   if (session.status === "processing") {
-    return true;
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.PLAN_REFRESH, 12000);
+  }
+
+  const deferDelayMs = resolveBackgroundProviderDeferDelay(session, BACKGROUND_JOB_KIND.PLAN_REFRESH, jobId);
+  if (Number.isFinite(deferDelayMs)) {
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.PLAN_REFRESH, deferDelayMs);
   }
 
   setSessionJobState(session, BACKGROUND_JOB_KIND.PLAN_REFRESH, startBackgroundJob(
     getSessionJobState(session, BACKGROUND_JOB_KIND.PLAN_REFRESH)
   ));
   await persistSession(session, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+    jobId
   });
 
   const { normalized } = await loadResumePackage();
-  const refinedPlan = attachTopicIdsToPlan(await buildInterviewPlan(buildPlanContext(session, normalized)), normalized);
+  const refinedPlan = attachTopicIdsToPlan(
+    await runWithBackgroundProviderLock(jobId, () => buildInterviewPlan(buildPlanContext(session, normalized))),
+    normalized
+  );
 
   const latest = await loadSession(sessionId, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+    jobId
   });
   if (latest.plan?.strategy !== "draft_plan") {
     return false;
   }
 
   if (latest.status === "processing") {
-    return true;
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.PLAN_REFRESH, 15000);
   }
 
   latest.plan = refinedPlan;
@@ -1000,14 +1259,14 @@ async function refreshDraftPlanJob({ sessionId }) {
   syncPlanAndGraph(latest, normalized);
   recomputeDerivedState(latest);
   await persistSession(latest, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.PLAN_REFRESH)
+    jobId
   });
   return false;
 }
 
 // report 生成属于冷路径工作，
 // 面试结束时只负责排队，真正的生成放到后台执行。
-function scheduleReportRefresh(sessionId, delayMs = 0) {
+function scheduleReportRefresh(sessionId, delayMs = null) {
   scheduleBackgroundJob({
     sessionId,
     kind: BACKGROUND_JOB_KIND.REPORT,
@@ -1016,8 +1275,9 @@ function scheduleReportRefresh(sessionId, delayMs = 0) {
 }
 
 async function refreshInterviewReportJob({ sessionId }) {
+  const jobId = backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT);
   const session = await loadSession(sessionId, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+    jobId
   });
   if (session.status !== "completed") {
     return false;
@@ -1028,7 +1288,7 @@ async function refreshInterviewReportJob({ sessionId }) {
   }
 
   if (session.status === "processing" || session.currentRun?.status === "running") {
-    return true;
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.REPORT, 10000);
   }
 
   const pendingThreadSummary = (session.topicThreads || []).some((thread) => {
@@ -1036,20 +1296,25 @@ async function refreshInterviewReportJob({ sessionId }) {
     return status === "pending" || status === "running";
   });
   if (pendingThreadSummary) {
-    return true;
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.REPORT, 5000);
+  }
+
+  const deferDelayMs = resolveBackgroundProviderDeferDelay(session, BACKGROUND_JOB_KIND.REPORT, jobId);
+  if (Number.isFinite(deferDelayMs)) {
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.REPORT, deferDelayMs);
   }
 
   setSessionJobState(session, BACKGROUND_JOB_KIND.REPORT, startBackgroundJob(
     getSessionJobState(session, BACKGROUND_JOB_KIND.REPORT)
   ));
   await persistSession(session, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+    jobId
   });
 
-  const report = await generateInterviewReport(session);
+  const report = await runWithBackgroundProviderLock(jobId, () => generateInterviewReport(session));
 
   const latest = await loadSession(sessionId, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+    jobId
   });
   if (latest.status !== "completed") {
     return false;
@@ -1060,7 +1325,7 @@ async function refreshInterviewReportJob({ sessionId }) {
     getSessionJobState(latest, BACKGROUND_JOB_KIND.REPORT)
   ));
   await persistSession(latest, {
-    jobId: backgroundJobKey(sessionId, BACKGROUND_JOB_KIND.REPORT)
+    jobId
   });
   return false;
 }
@@ -1106,7 +1371,7 @@ async function refreshThreadSummaryJob({ sessionId, targetId }) {
     threadId: targetId
   });
   if (session.status === "processing") {
-    return true;
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.THREAD_SUMMARY, 3000);
   }
 
   const thread = getThreadById(session, targetId);
@@ -1125,7 +1390,7 @@ async function refreshThreadSummaryJob({ sessionId, targetId }) {
     threadId: targetId
   });
   if (latest.status === "processing") {
-    return true;
+    return createQuietBackgroundRetry(BACKGROUND_JOB_KIND.THREAD_SUMMARY, 3000);
   }
 
   const latestThread = getThreadById(latest, targetId);
@@ -1146,30 +1411,35 @@ async function refreshThreadSummaryJob({ sessionId, targetId }) {
   return false;
 }
 
-function scheduleBackgroundJob({ sessionId, kind, targetId = null, delayMs = 0 }) {
+function scheduleBackgroundJob({ sessionId, kind, targetId = null, delayMs = null, quiet = false }) {
   const key = backgroundJobKey(sessionId, kind, targetId);
+  const resolvedDelayMs = resolveBackgroundJobDelay(kind, delayMs);
   const logger = createSessionLogger(sessionId, {
     jobId: key,
     threadId: targetId || undefined
   });
   if (pendingBackgroundJobs.has(key)) {
-    logger.debug("background_job.duplicate_ignored", {
-      jobKind: kind,
-      targetId,
-      delayMs
-    });
+    if (!quiet) {
+      logger.debug("background_job.duplicate_ignored", {
+        jobKind: kind,
+        targetId,
+        delayMs: resolvedDelayMs
+      });
+    }
     return;
   }
 
   pendingBackgroundJobs.add(key);
-  logger.info("background_job.queued", {
-    jobKind: kind,
-    targetId,
-    delayMs
-  });
+  if (!quiet) {
+    logger.info("background_job.queued", {
+      jobKind: kind,
+      targetId,
+      delayMs: resolvedDelayMs
+    });
+  }
   setTimeout(() => {
     void runBackgroundJob({ sessionId, kind, targetId });
-  }, delayMs);
+  }, resolvedDelayMs);
 }
 
 async function runBackgroundJob({ sessionId, kind, targetId = null }) {
@@ -1178,30 +1448,69 @@ async function runBackgroundJob({ sessionId, kind, targetId = null }) {
     jobId: key,
     threadId: targetId || undefined
   });
+  if (isProviderBackedBackgroundJob(kind) || kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY) {
+    const session = await loadSession(sessionId, {
+      jobId: key,
+      threadId: targetId || undefined
+    });
+    const preflight = resolveBackgroundJobPreflight(session, kind, targetId, key);
+    if (preflight?.shouldSkip) {
+      pendingBackgroundJobs.delete(key);
+      return;
+    }
+    if (preflight?.shouldRetry) {
+      pendingBackgroundJobs.delete(key);
+      scheduleBackgroundJob({
+        sessionId,
+        kind,
+        targetId,
+        delayMs: preflight.retryDelayMs,
+        quiet: Boolean(preflight.quiet)
+      });
+      return;
+    }
+  }
+
   const span = logger.startSpan("background_job", {
     jobKind: kind,
     targetId
   });
-  let shouldRetry = false;
+  let retryState = {
+    shouldRetry: false,
+    retryDelayMs: null,
+    quiet: false
+  };
 
   try {
+    let result = false;
     switch (kind) {
       case BACKGROUND_JOB_KIND.PLAN_REFRESH:
-        shouldRetry = await refreshDraftPlanJob({ sessionId });
+        result = await refreshDraftPlanJob({ sessionId });
         break;
       case BACKGROUND_JOB_KIND.REPORT:
-        shouldRetry = await refreshInterviewReportJob({ sessionId });
+        result = await refreshInterviewReportJob({ sessionId });
         break;
       case BACKGROUND_JOB_KIND.THREAD_SUMMARY:
-        shouldRetry = await refreshThreadSummaryJob({ sessionId, targetId });
+        result = await refreshThreadSummaryJob({ sessionId, targetId });
         break;
       default:
         break;
     }
+    retryState = typeof result === "object" && result
+      ? {
+          shouldRetry: Boolean(result.shouldRetry),
+          retryDelayMs: Number.isFinite(result.retryDelayMs) ? Number(result.retryDelayMs) : null,
+          quiet: Boolean(result.quiet)
+        }
+      : {
+          shouldRetry: Boolean(result),
+          retryDelayMs: null,
+          quiet: false
+        };
     span.end({
       jobKind: kind,
       targetId,
-      shouldRetry
+      shouldRetry: retryState.shouldRetry
     });
   } catch (error) {
     span.fail(error, {
@@ -1238,13 +1547,22 @@ async function runBackgroundJob({ sessionId, kind, targetId = null }) {
     }
   } finally {
     pendingBackgroundJobs.delete(key);
-    if (shouldRetry) {
-      logger.info("background_job.retry_scheduled", {
-        jobKind: kind,
+    if (retryState.shouldRetry) {
+      const retryDelayMs = retryState.retryDelayMs ?? getBackgroundJobRetryDelay(kind);
+      if (!retryState.quiet) {
+        logger.info("background_job.retry_scheduled", {
+          jobKind: kind,
+          targetId,
+          retryDelayMs
+        });
+      }
+      scheduleBackgroundJob({
+        sessionId,
+        kind,
         targetId,
-        retryDelayMs: 1500
+        delayMs: retryDelayMs,
+        quiet: retryState.quiet
       });
-      scheduleBackgroundJob({ sessionId, kind, targetId, delayMs: 1500 });
     }
   }
 }
@@ -1471,23 +1789,29 @@ async function processAnswerRun(sessionId, turnIndex) {
       recomputeDerivedState(session);
       setRunPhase(session.currentRun, "observe", "分析用户回答、当前线程和覆盖情况。");
       publishSessionSnapshot(session);
-      const assessment = await assessInterviewAnswer({
+      const turnAnalysis = await analyzeInterviewTurn({
         session,
         stage: getCurrentStage(session),
         question: turn.question,
         answer: turn.answer,
+        normalizedResume: normalized,
         logContext: buildSessionLogContext(session, {
           turnIndex,
           threadId: turn.threadId || undefined
         })
       });
-      recordRunStrategy(session.currentRun, "observe", assessment._providerMeta);
+      const assessment = turnAnalysis.assessment;
+      recordRunStrategy(session.currentRun, "observe", turnAnalysis._providerMeta);
       turn.assessment = assessment;
       turn.processing = true;
       session.currentRun.debug.observe = {
         ...buildObservationForAnswer(session, turn),
         preliminaryAssessment: assessment,
-        modelStrategy: buildModelStrategyInfo(assessment._providerMeta)
+        questionDrafts: {
+          followupQuestion: turnAnalysis.followupQuestion || null,
+          nextTopicQuestion: turnAnalysis.nextTopicQuestion || null
+        },
+        modelStrategy: buildModelStrategyInfo(turnAnalysis._providerMeta)
       };
       recomputeDerivedState(session);
       publishSessionSnapshot(session);
@@ -1568,7 +1892,14 @@ async function processAnswerRun(sessionId, turnIndex) {
         applyDecisionStageTarget(session, decision);
 
         const stage = getCurrentStage(session);
-        const question = await generateInterviewQuestion({
+        const executionPlan = pickQuestionExecutionPath({
+          decision,
+          turnAnalysis,
+          session,
+          stage,
+          normalizedResume: normalized
+        });
+        const question = executionPlan.question || await generateInterviewQuestion({
           session,
           stage,
           normalizedResume: normalized,
@@ -1589,6 +1920,7 @@ async function processAnswerRun(sessionId, turnIndex) {
         recomputeDerivedState(session);
         session.currentRun.debug.execution = {
           modelStrategy: buildModelStrategyInfo(question._providerMeta),
+          source: executionPlan.question ? executionPlan.source : "live_question_call",
           summary: "下一道问题已生成。",
           question
         };
