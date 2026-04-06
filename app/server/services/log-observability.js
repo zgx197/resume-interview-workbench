@@ -47,66 +47,53 @@ function pickEntryFields(entry, extra = {}) {
   };
 }
 
+function backgroundJobReason(entry) {
+  return entry?.meta?.reason || entry?.meta?.lastError || null;
+}
+
+function isBackgroundJobExhausted(entry) {
+  return /exhausted/i.test(String(backgroundJobReason(entry) || ""));
+}
+
 function buildTimelineLabel(entry) {
   const meta = entry.meta || {};
 
-  if (entry.event === "session.created") {
-    return "会话已创建";
+  switch (entry.event) {
+    case "session.created":
+      return "session created";
+    case "answer.accepted":
+      return `turn ${entry.turnIndex || meta.turnIndex || "?"} answer accepted`;
+    case "run.started":
+      return `${meta.runKind || "run"} started`;
+    case "run.completed":
+      return `${meta.runKind || "run"} completed`;
+    case "run.failed":
+      return `${meta.runKind || "run"} failed`;
+    case "run.phase.completed":
+      return `${meta.phase || "phase"} completed`;
+    case "run.phase.failed":
+      return `${meta.phase || "phase"} failed`;
+    case "provider.generate_json.completed":
+      return `${meta.purpose || "provider"} completed${meta.fallbackUsed ? " (fallback)" : ""}`;
+    case "provider.fallback.used":
+      return `${entry.component} fallback used`;
+    case "background_job.queued":
+      return `${meta.jobKind || "job"} queued`;
+    case "background_job.started":
+      return `${meta.jobKind || "job"} started`;
+    case "background_job.completed":
+      return `${meta.jobKind || "job"} completed`;
+    case "background_job.skipped":
+      return `${meta.jobKind || "job"} skipped`;
+    case "background_job.failed":
+      return `${meta.jobKind || "job"} ${isBackgroundJobExhausted(entry) ? "exhausted" : "failed"}`;
+    case "background_job.retry_scheduled":
+      return `${meta.jobKind || "job"} retry scheduled`;
+    case "background_job.recovered":
+      return `worker recovered ${Number(meta.recoveredCount || 0)} jobs`;
+    default:
+      return `${entry.component} / ${entry.event}`;
   }
-
-  if (entry.event === "answer.accepted") {
-    return `第 ${entry.turnIndex || meta.turnIndex || "?"} 轮回答已接收`;
-  }
-
-  if (entry.event === "run.started") {
-    return `${meta.runKind || "run"} 开始`;
-  }
-
-  if (entry.event === "run.completed") {
-    return `${meta.runKind || "run"} 完成`;
-  }
-
-  if (entry.event === "run.failed") {
-    return `${meta.runKind || "run"} 失败`;
-  }
-
-  if (entry.event === "run.phase.completed") {
-    return `${meta.phase || "phase"} 阶段完成`;
-  }
-
-  if (entry.event === "run.phase.failed") {
-    return `${meta.phase || "phase"} 阶段失败`;
-  }
-
-  if (entry.event === "provider.generate_json.completed") {
-    return `${meta.purpose || "provider"} 调用完成${meta.fallbackUsed ? "（回退）" : ""}`;
-  }
-
-  if (entry.event === "provider.fallback.used") {
-    return `${entry.component} 触发回退`;
-  }
-
-  if (entry.event === "background_job.queued") {
-    return `${meta.jobKind || "job"} 已排队`;
-  }
-
-  if (entry.event === "background_job.started") {
-    return `${meta.jobKind || "job"} 执行中`;
-  }
-
-  if (entry.event === "background_job.completed") {
-    return `${meta.jobKind || "job"} 已完成`;
-  }
-
-  if (entry.event === "background_job.failed") {
-    return `${meta.jobKind || "job"} 已失败`;
-  }
-
-  if (entry.event === "background_job.retry_scheduled") {
-    return `${meta.jobKind || "job"} 已安排重试`;
-  }
-
-  return `${entry.component} / ${entry.event}`;
 }
 
 function isTimelineEntry(entry) {
@@ -123,8 +110,10 @@ function isTimelineEntry(entry) {
     "background_job.queued",
     "background_job.started",
     "background_job.completed",
+    "background_job.skipped",
     "background_job.failed",
-    "background_job.retry_scheduled"
+    "background_job.retry_scheduled",
+    "background_job.recovered"
   ].includes(entry.event);
 }
 
@@ -135,7 +124,9 @@ function buildSlowSpanItem(entry) {
     phase: meta.phase || null,
     purpose: meta.purpose || null,
     jobKind: meta.jobKind || null,
-    status: entry.event.endsWith(".failed") ? "failed" : "completed",
+    status: entry.event.endsWith(".failed")
+      ? (isBackgroundJobExhausted(entry) ? "exhausted" : "failed")
+      : (entry.event === "background_job.skipped" ? "skipped" : "completed"),
     slow: Boolean(meta.slow || (entry.durationMs || 0) >= config.logSlowThresholdMs)
   });
 }
@@ -198,16 +189,67 @@ function summarizeSessionTimeline(entries, timelineLimit) {
         purpose: meta.purpose || null,
         jobKind: meta.jobKind || null,
         action: meta.action || null,
+        reason: backgroundJobReason(entry),
         fallbackUsed: Boolean(meta.fallbackUsed)
       });
     });
+}
+
+function summarizeBackgroundJobEvents(entries) {
+  const summary = {
+    queuedCount: 0,
+    startedCount: 0,
+    completedCount: 0,
+    skippedCount: 0,
+    failedCount: 0,
+    exhaustedCount: 0,
+    retryScheduledCount: 0,
+    recoveredCount: 0
+  };
+
+  for (const entry of entries) {
+    if (!isUserFacingObservabilityEntry(entry) || !String(entry.event || "").startsWith("background_job.")) {
+      continue;
+    }
+
+    switch (entry.event) {
+      case "background_job.queued":
+        summary.queuedCount += 1;
+        break;
+      case "background_job.started":
+        summary.startedCount += 1;
+        break;
+      case "background_job.completed":
+        summary.completedCount += 1;
+        break;
+      case "background_job.skipped":
+        summary.skippedCount += 1;
+        break;
+      case "background_job.failed":
+        summary.failedCount += 1;
+        if (isBackgroundJobExhausted(entry)) {
+          summary.exhaustedCount += 1;
+        }
+        break;
+      case "background_job.retry_scheduled":
+        summary.retryScheduledCount += 1;
+        break;
+      case "background_job.recovered":
+        summary.recoveredCount += Number(entry.meta?.recoveredCount || 0);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return summary;
 }
 
 function summarizeSessionBackgroundJobs(entries, jobLimit) {
   const buckets = new Map();
 
   for (const entry of entries) {
-    if (!entry.jobId || !entry.event.startsWith("background_job.") || !isUserFacingObservabilityEntry(entry)) {
+    if (!entry.jobId || !String(entry.event || "").startsWith("background_job.") || !isUserFacingObservabilityEntry(entry)) {
       continue;
     }
 
@@ -217,6 +259,7 @@ function summarizeSessionBackgroundJobs(entries, jobLimit) {
       targetId: entry.meta?.targetId || null,
       sessionId: entry.sessionId || null,
       threadId: entry.threadId || null,
+      workerId: null,
       queuedAt: null,
       startedAt: null,
       completedAt: null,
@@ -225,19 +268,29 @@ function summarizeSessionBackgroundJobs(entries, jobLimit) {
       lastEventAt: null,
       durationMs: null,
       retryCount: 0,
+      attempt: null,
+      maxAttempts: null,
+      scheduledLagMs: null,
+      reason: null,
       status: "idle"
     };
     const currentLastEventTime = Date.parse(current.lastEventAt || "");
     const nextEventTime = parseEntryTime(entry);
+    const meta = entry.meta || {};
 
-    current.jobKind ||= entry.meta?.jobKind || null;
-    current.targetId ||= entry.meta?.targetId || null;
+    current.jobKind ||= meta.jobKind || null;
+    current.targetId ||= meta.targetId || null;
+    current.workerId ||= meta.workerId || null;
+    current.attempt = Number.isFinite(Number(meta.attempt)) ? Number(meta.attempt) : current.attempt;
+    current.maxAttempts = Number.isFinite(Number(meta.maxAttempts)) ? Number(meta.maxAttempts) : current.maxAttempts;
+    current.scheduledLagMs = Number.isFinite(Number(meta.scheduledLagMs)) ? Number(meta.scheduledLagMs) : current.scheduledLagMs;
+    current.reason = backgroundJobReason(entry) || current.reason;
 
     if (entry.event === "background_job.queued") {
       current.queuedAt ||= entry.ts || null;
     } else if (entry.event === "background_job.started") {
       current.startedAt = entry.ts || current.startedAt;
-    } else if (entry.event === "background_job.completed") {
+    } else if (entry.event === "background_job.completed" || entry.event === "background_job.skipped") {
       current.completedAt = entry.ts || current.completedAt;
       current.durationMs = Number.isFinite(entry.durationMs) ? entry.durationMs : current.durationMs;
     } else if (entry.event === "background_job.failed") {
@@ -257,8 +310,10 @@ function summarizeSessionBackgroundJobs(entries, jobLimit) {
         current.status = "running";
       } else if (entry.event === "background_job.completed") {
         current.status = "completed";
+      } else if (entry.event === "background_job.skipped") {
+        current.status = "skipped";
       } else if (entry.event === "background_job.failed") {
-        current.status = "failed";
+        current.status = isBackgroundJobExhausted(entry) ? "exhausted" : "failed";
       }
     }
 
@@ -278,8 +333,13 @@ function summarizeSessionBackgroundJobs(entries, jobLimit) {
       targetId: item.targetId,
       sessionId: item.sessionId,
       threadId: item.threadId,
+      workerId: item.workerId,
       status: item.status,
       retryCount: item.retryCount,
+      attempt: item.attempt,
+      maxAttempts: item.maxAttempts,
+      scheduledLagMs: item.scheduledLagMs,
+      reason: item.reason,
       queuedAt: item.queuedAt,
       startedAt: item.startedAt,
       completedAt: item.completedAt,
@@ -386,6 +446,11 @@ export async function getObservabilityOverview({
     recentTimeline: summarizeSessionTimeline(
       visibleEntries,
       normalizeLimit(limit, 20, { min: 5, max: 60 })
+    ),
+    backgroundJobSummary: summarizeBackgroundJobEvents(visibleEntries),
+    backgroundJobs: summarizeSessionBackgroundJobs(
+      visibleEntries,
+      normalizeLimit(limit, 20, { min: 5, max: 60 })
     )
   };
 }
@@ -418,6 +483,7 @@ export async function getSessionObservabilitySummary(sessionId, {
     timeline: summarizeSessionTimeline(sessionEntries, normalizeLimit(timelineLimit, 60, { min: 5, max: 200 })),
     recentProviderCalls: summarizeProviderCalls(sessionEntries, normalizeLimit(providerLimit, 20)),
     slowSpans: summarizeSlowSpans(sessionEntries, normalizeLimit(slowLimit, 20)),
+    backgroundJobSummary: summarizeBackgroundJobEvents(sessionEntries),
     backgroundJobs: summarizeSessionBackgroundJobs(sessionEntries, normalizeLimit(jobLimit, 20))
   };
 }

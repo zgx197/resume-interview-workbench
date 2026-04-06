@@ -3,8 +3,12 @@ import { config } from "./config.js";
 import { loadEnvFile } from "./env.js";
 import { readRequestJson, sendError, sendJson, sendStaticFile } from "./lib/http.js";
 import { createLogger } from "./lib/logger.js";
-import { answerInterviewQuestion, createInterviewSession, getBootstrapData, getInterviewSession, resumePendingSessions } from "./services/interview-service.js";
+import { answerInterviewQuestion, createInterviewSession, getBootstrapData, getInterviewSession, listInterviewSessions, resumePendingSessions, startBackgroundJobWorker } from "./services/interview-service.js";
 import { getObservabilityOverview, getSessionObservabilitySummary } from "./services/log-observability.js";
+import { listBackgroundJobSnapshots } from "./services/background-job-service.js";
+import { getKnowledgeDocumentEmbeddingStatus, listKnowledgeDocuments, searchSimilarKnowledge, syncKnowledgeEmbeddings } from "./services/knowledge-service.js";
+import { getQuestionBankItem, getQuestionBankSnapshot, listQuestionBankCategories, listQuestionBankTags, saveQuestionBankItem } from "./services/question-bank-service.js";
+import { getReviewSet, listReviewAttempts, listReviewItems, listReviewSets, recommendReviewSet, recordReviewAttempt, saveReviewSet, updateReviewItemStatus } from "./services/review-service.js";
 import { subscribeSession } from "./services/session-events.js";
 import { deleteInterviewTemplate, listInterviewTemplates, saveInterviewTemplate } from "./services/template-service.js";
 
@@ -64,6 +68,177 @@ async function handleApi(req, res, url) {
       return true;
     }
     sendJson(res, 201, await createInterviewSession(body));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/interviews") {
+    sendJson(res, 200, await listInterviewSessions({
+      status: url.searchParams.get("status") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 100)
+    }));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/questions/categories") {
+    sendJson(res, 200, await listQuestionBankCategories());
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/questions/tags") {
+    sendJson(res, 200, await listQuestionBankTags({
+      category: url.searchParams.get("category") || null,
+      tagCategory: url.searchParams.get("tagCategory") || null
+    }));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/questions") {
+    sendJson(res, 200, await getQuestionBankSnapshot({
+      category: url.searchParams.get("category") || null,
+      q: url.searchParams.get("q") || null,
+      sourceType: url.searchParams.get("sourceType") || null,
+      tagKey: url.searchParams.get("tagKey") || null,
+      difficulty: url.searchParams.get("difficulty") || null,
+      minDifficulty: url.searchParams.get("minDifficulty") || null,
+      maxDifficulty: url.searchParams.get("maxDifficulty") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 50)
+    }));
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/questions") {
+    const body = await readRequestJson(req);
+    sendJson(res, body.id ? 200 : 201, await saveQuestionBankItem(body));
+    return true;
+  }
+
+  const questionMatch = url.pathname.match(/^\/api\/questions\/([^/]+)$/);
+  if (questionMatch && req.method === "GET") {
+    const question = await getQuestionBankItem(questionMatch[1]);
+    if (!question) {
+      sendError(res, 404, "Question not found.");
+      return true;
+    }
+    sendJson(res, 200, question);
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/reviews") {
+    sendJson(res, 200, await listReviewItems({
+      status: url.searchParams.get("status") || null,
+      topicId: url.searchParams.get("topicId") || null,
+      sessionId: url.searchParams.get("sessionId") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 50)
+    }));
+    return true;
+  }
+
+  const reviewStatusMatch = url.pathname.match(/^\/api\/reviews\/([^/]+)\/status$/);
+  if (reviewStatusMatch && req.method === "POST") {
+    const body = await readRequestJson(req);
+    const updated = await updateReviewItemStatus(reviewStatusMatch[1], body || {});
+    if (!updated) {
+      sendError(res, 404, "Review item not found.");
+      return true;
+    }
+    sendJson(res, 200, updated);
+    return true;
+  }
+
+  const reviewAttemptsMatch = url.pathname.match(/^\/api\/reviews\/([^/]+)\/attempts$/);
+  if (reviewAttemptsMatch && req.method === "GET") {
+    sendJson(res, 200, await listReviewAttempts(reviewAttemptsMatch[1], {
+      limit: readPositiveInt(url.searchParams, "limit", 20)
+    }));
+    return true;
+  }
+
+  if (reviewAttemptsMatch && req.method === "POST") {
+    const body = await readRequestJson(req);
+    const result = await recordReviewAttempt(reviewAttemptsMatch[1], body || {});
+    if (!result) {
+      sendError(res, 404, "Review item not found.");
+      return true;
+    }
+    sendJson(res, 201, result);
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/review-sets") {
+    sendJson(res, 200, await listReviewSets({
+      status: url.searchParams.get("status") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 20)
+    }));
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/review-sets") {
+    const body = await readRequestJson(req);
+    sendJson(res, body.id ? 200 : 201, await saveReviewSet(body || {}));
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/review-sets/recommended") {
+    const body = await readRequestJson(req).catch(() => ({}));
+    sendJson(res, 200, await recommendReviewSet(body || {}));
+    return true;
+  }
+
+  const reviewSetMatch = url.pathname.match(/^\/api\/review-sets\/([^/]+)$/);
+  if (reviewSetMatch && req.method === "GET") {
+    const reviewSet = await getReviewSet(reviewSetMatch[1]);
+    if (!reviewSet) {
+      sendError(res, 404, "Review set not found.");
+      return true;
+    }
+    sendJson(res, 200, reviewSet);
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/background-jobs") {
+    sendJson(res, 200, await listBackgroundJobSnapshots({
+      sessionId: url.searchParams.get("sessionId") || null,
+      kind: url.searchParams.get("kind") || null,
+      status: url.searchParams.get("status") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 50)
+    }));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/knowledge") {
+    sendJson(res, 200, await listKnowledgeDocuments({
+      q: url.searchParams.get("q") || null,
+      documentType: url.searchParams.get("documentType") || null,
+      sourceTable: url.searchParams.get("sourceTable") || null,
+      sourceId: url.searchParams.get("sourceId") || null,
+      status: url.searchParams.get("status") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 50)
+    }));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/knowledge/similar") {
+    sendJson(res, 200, await searchSimilarKnowledge({
+      query: url.searchParams.get("q") || null,
+      documentId: url.searchParams.get("documentId") || null,
+      documentType: url.searchParams.get("documentType") || null,
+      limit: readPositiveInt(url.searchParams, "limit", 10)
+    }));
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/knowledge/embeddings/sync") {
+    const body = await readRequestJson(req).catch(() => ({}));
+    sendJson(res, 200, await syncKnowledgeEmbeddings({
+      documentType: body?.documentType || null,
+      limit: Number.isFinite(Number(body?.limit)) ? Number(body.limit) : 20
+    }));
+    return true;
+  }
+
+  const knowledgeEmbeddingMatch = url.pathname.match(/^\/api\/knowledge\/([^/]+)\/embedding-status$/);
+  if (knowledgeEmbeddingMatch && req.method === "GET") {
+    sendJson(res, 200, await getKnowledgeDocumentEmbeddingStatus(knowledgeEmbeddingMatch[1]));
     return true;
   }
 
@@ -183,4 +358,6 @@ server.listen(config.port, () => {
     .catch((error) => {
       resumeSpan.fail(error);
     });
+
+  startBackgroundJobWorker();
 });

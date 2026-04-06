@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
+import { closeDbPool } from "../db/client.js";
 import { loadEnvFile } from "../env.js";
 import { loadInterviewCatalog } from "../services/catalog-loader.js";
 import { createInterviewSession, getInterviewSession } from "../services/interview-service.js";
@@ -45,7 +46,12 @@ async function main() {
   console.log("run status:", ready.currentRun?.status);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await closeDbPool();
+    process.exit(process.exitCode || 0);
+  });
