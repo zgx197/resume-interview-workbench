@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "start": "node app/server/server.js",
-    "dev": "node --watch app/server/server.js",
+    "dev": "node app/server/scripts/dev.js",
+    "dev:no-open": "node app/server/scripts/dev.js --no-open",
+    "dev:server": "node --watch app/server/server.js",
+    "dev:win": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "check": "node app/server/scripts/check.js",
     "test:kimi": "node app/server/scripts/test-kimi.js",
     "smoke:session": "node app/server/scripts/smoke-session.js",

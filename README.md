@@ -104,6 +104,12 @@ MOONSHOT_THINKING=enabled
 npm run dev
 ```
 
+Dev mode automatically:
+
+- starts the local server and waits for health check success
+- reuses an already running service on port `3000`
+- opens `http://127.0.0.1:3000` after the server is ready
+
 或：
 
 ```bash
@@ -113,8 +119,25 @@ npm start
 默认访问地址：
 
 ```text
-http://localhost:3000
+http://127.0.0.1:3000
 ```
+
+Windows one-click launcher:
+
+```powershell
+.\scripts\dev.ps1
+```
+
+Or double-click:
+
+```text
+scripts\dev.cmd
+```
+
+Useful variants:
+
+- `npm run dev -- --no-open`: start the server without opening a browser
+- `npm run dev:win`: start the server in a minimized PowerShell window
 
 ## 常用命令
 
