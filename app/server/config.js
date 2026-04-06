@@ -10,8 +10,17 @@ function resolveRepoPath(value, fallbackRelativePath) {
   return path.isAbsolute(targetPath) ? targetPath : path.join(repoRoot, targetPath);
 }
 
-// 统一管理环境变量和目录路径，避免业务代码里反复读取 process.env
-// 或重复拼接仓库内的资源路径。
+function readBooleanEnv(name, fallback = false) {
+  const raw = process.env[name];
+  if (raw == null || raw === "") {
+    return fallback;
+  }
+
+  return !["0", "false", "no", "off"].includes(String(raw).toLowerCase());
+}
+
+// Centralize environment variables and project paths so the service layer
+// doesn't repeatedly read process.env or rebuild repo-relative paths.
 export const config = {
   repoRoot,
   get port() {
@@ -32,8 +41,57 @@ export const config = {
   get moonshotThinking() {
     return process.env.MOONSHOT_THINKING || "enabled";
   },
+  get embeddingProvider() {
+    return process.env.EMBEDDING_PROVIDER || "openai_compatible";
+  },
+  get embeddingApiKey() {
+    return process.env.EMBEDDING_API_KEY || "";
+  },
+  get embeddingModel() {
+    return process.env.EMBEDDING_MODEL || "text-embedding-v4";
+  },
+  get embeddingBaseUrl() {
+    return process.env.EMBEDDING_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  },
+  get embeddingDimensions() {
+    const value = Number(process.env.EMBEDDING_DIMENSIONS || "");
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+  },
+  get embeddingSyncOnWrite() {
+    return readBooleanEnv("EMBEDDING_SYNC_ON_WRITE", true);
+  },
+  get postgresDb() {
+    return process.env.POSTGRES_DB || "resume_interview_workbench";
+  },
+  get postgresUser() {
+    return process.env.POSTGRES_USER || "resume_interview_workbench";
+  },
+  get postgresPassword() {
+    return process.env.POSTGRES_PASSWORD || "resume_interview_workbench";
+  },
+  get postgresPort() {
+    const value = Number(process.env.POSTGRES_PORT || 5432);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 5432;
+  },
+  get databaseUrl() {
+    return process.env.DATABASE_URL
+      || `postgresql://${config.postgresUser}:${config.postgresPassword}@127.0.0.1:${config.postgresPort}/${config.postgresDb}`;
+  },
+  get databasePoolMax() {
+    const value = Number(process.env.DATABASE_POOL_MAX || 10);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 10;
+  },
+  get databaseSsl() {
+    return readBooleanEnv("DATABASE_SSL", false);
+  },
+  get databaseDockerService() {
+    return process.env.DATABASE_DOCKER_SERVICE || "postgres";
+  },
   get interviewRuntimeMode() {
     return process.env.INTERVIEW_RUNTIME_MODE || "fast";
+  },
+  get interviewRuntimeStorageMode() {
+    return process.env.INTERVIEW_RUNTIME_STORAGE_MODE || "database_only";
   },
   get logLevel() {
     return String(process.env.LOG_LEVEL || "info").toLowerCase();
@@ -74,5 +132,11 @@ export const config = {
   },
   get sessionDir() {
     return resolveRepoPath(process.env.SESSION_DIR, "sessions");
+  },
+  get dbDir() {
+    return path.join(repoRoot, "app", "server", "db");
+  },
+  get dbMigrationsDir() {
+    return path.join(config.dbDir, "migrations");
   }
 };

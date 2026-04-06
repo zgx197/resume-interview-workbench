@@ -74,6 +74,12 @@
 └─ .env.example                # 环境变量示例
 ```
 
+## 设计文档
+
+- [面试引擎重构设计](./docs/interview-engine-redesign.md)
+- [日志与可观测性设计](./docs/logging-observability-design.md)
+- [数据库与知识检索架构落地方案](./docs/database-architecture-plan.md)
+
 ## 快速开始
 
 ### 1. 安装依赖

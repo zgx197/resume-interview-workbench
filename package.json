@@ -10,12 +10,15 @@
     "dev:server": "node --watch app/server/server.js",
     "dev:win": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "check": "node app/server/scripts/check.js",
+    "db:migrate": "node app/server/scripts/migrate.js",
+    "db:backfill:sessions": "node app/server/scripts/backfill-sessions.js",
     "test:kimi": "node app/server/scripts/test-kimi.js",
     "smoke:session": "node app/server/scripts/smoke-session.js",
     "test:kimi-search": "node app/server/scripts/test-kimi-search.js",
     "smoke:session-search": "node app/server/scripts/smoke-session-search.js"
   },
   "dependencies": {
+    "pg": "^8.20.0",
     "vis-network": "^10.0.2"
   }
 }
