@@ -1030,3 +1030,29 @@ app/server/
 2. 再补 `background_jobs` 的 lease / retry / timeout / worker 闭环
 3. 视产品优先级决定是否补全 review 复习系统的 attempts / sets
 4. 最后再正式完成 Phase 4，下线 file-era 运行态心智，只保留 JSONL 与导出职责
+### 19.3 里程碑变更说明（截至 `d2faadd`）
+
+以下 3 个提交可以作为当前数据库化改造的里程碑切点，后续如需回看 Phase 推进轨迹，可直接按这组 commit 追踪：
+
+| Commit | 主题 | 主要落地内容 | 对应 Phase 推进 |
+| --- | --- | --- | --- |
+| `e3dc528` | `feat(db): bootstrap postgres runtime and migrations` | 引入 `docker-compose.yml`、`.env.example` 数据库配置、`db/client.js`、migration runner、`0000` 到 `0006` 迁移骨架，并补充数据库架构计划文档。 | Phase 0 完成；Phase 1 的基础设施部分完成。 |
+| `607ceb9` | `feat(db): add repositories and asset domain services` | 建立 repository 接口层与 DB 实现，接入 template/question/review/knowledge/background job 等核心资产域，形成数据库版业务边界。 | Phase 1 完成；Phase 2 进入主体完成态；Background Job 与 Knowledge Retrieval 进入“部分完成”。 |
+| `d2faadd` | `feat(runtime): persist structured session read models` | 打通 session/turn/assessment/report 的 DB 主写与回填，新增运行态结构化 read model 子表与 hydration 逻辑，并补 observability 汇总。 | Phase 3 主链路完成；Phase 4 进入收尾阶段，但仍需继续削减对 `snapshot_json` 的读依赖。 |
+
+**当前里程碑判断**
+
+- Phase 0：已完成
+- Phase 1：已完成
+- Phase 2：主体完成，剩余 review 完整复习域与统一 retrieval policy 收尾
+- Phase 3：主链路完成，仍需继续把摘要/列表等读路径从快照迁到结构化 read model
+- Phase 4：未完成，当前处于“数据库已成默认真相源，但读模型仍在收口”的阶段
+
+**建议把后续提交继续按下面 3 类打点**
+
+- `feat(read-model): ...`
+  用于继续推进 Phase 3/4 的结构化读模型收口。
+- `feat(job-worker): ...`
+  用于补齐 lease / retry / timeout / recovery 的 worker 闭环。
+- `feat(review): ...`
+  用于把 review 从“弱项条目沉淀”推进到“完整复习域”。

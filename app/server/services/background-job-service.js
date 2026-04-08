@@ -84,6 +84,10 @@ export async function leaseBackgroundJob(jobKey, workerId, options = {}) {
   return backgroundJobRepository.leaseByJobKey(jobKey, workerId, options);
 }
 
+export async function startBackgroundJobLease(jobKey, workerId) {
+  return backgroundJobRepository.startLease(jobKey, workerId);
+}
+
 export async function heartbeatBackgroundJobLease(jobKey, workerId, options = {}) {
   return backgroundJobRepository.heartbeatLease(jobKey, workerId, options);
 }

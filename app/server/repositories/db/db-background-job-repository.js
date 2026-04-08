@@ -165,7 +165,13 @@ from background_jobs
 where kind = any($1::text[])
   and status = any($2::text[])
   and ($3::text is null or session_id = $3)
-  and (scheduled_at <= now() or status = 'leased')
+  and (
+    (status = 'pending' and scheduled_at <= now())
+    or (
+      status in ('leased', 'running')
+      and (lease_expires_at is null or lease_expires_at <= now())
+    )
+  )
 order by scheduled_at asc, updated_at asc, id asc
 limit $4;
 `,
@@ -250,6 +256,27 @@ returning *;
     return mapBackgroundJobRow(result.rows[0] || null);
   }
 
+  async startLease(jobKey, workerId) {
+    const result = await query(
+      `
+update background_jobs
+set
+  status = 'running',
+  started_at = coalesce(started_at, now()),
+  updated_at = now()
+where job_key = $1
+  and lease_owner = $2
+  and status in ('leased', 'running')
+returning *;
+`,
+      [
+        jobKey,
+        workerId
+      ]
+    );
+    return mapBackgroundJobRow(result.rows[0] || null);
+  }
+
   async heartbeatLease(jobKey, workerId, options = {}) {
     const leaseMs = normalizeLeaseMs(options);
     const result = await query(
@@ -260,7 +287,7 @@ set
   updated_at = now()
 where job_key = $1
   and lease_owner = $2
-  and status = 'leased'
+  and status in ('leased', 'running')
 returning *;
 `,
       [
@@ -286,6 +313,7 @@ set
   updated_at = now()
 where job_key = $1
   and lease_owner = $2
+  and status in ('leased', 'running')
 returning *;
 `,
       [
@@ -323,6 +351,7 @@ set
   updated_at = now()
 where job_key = $1
   and lease_owner = $2
+  and status in ('leased', 'running')
 returning *;
 `,
       [
@@ -349,10 +378,8 @@ set
   finished_at = case when attempts < max_attempts then finished_at else now() end,
   updated_at = now()
 where kind = any($1::text[])
-  and (
-    (status = 'leased' and (lease_expires_at is null or lease_expires_at <= now()))
-    or status = 'running'
-  )
+  and status in ('leased', 'running')
+  and (lease_expires_at is null or lease_expires_at <= now())
 returning *;
 `,
       [

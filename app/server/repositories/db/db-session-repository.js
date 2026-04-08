@@ -51,6 +51,22 @@ function mapSessionRow(row) {
     currentRun: row.current_run_json || {},
     planJob: row.plan_job_json || {},
     reportJob: row.report_job_json || {},
+    currentStageId: row.current_stage_id || null,
+    currentStageCategory: row.current_stage_category || null,
+    currentStageTitle: row.current_stage_title || null,
+    planStageCount: row.plan_stage_count == null ? 0 : Number(row.plan_stage_count),
+    topicNodeCount: row.topic_node_count == null ? 0 : Number(row.topic_node_count),
+    coveredTopicCount: row.covered_topic_count == null ? 0 : Number(row.covered_topic_count),
+    topicThreadCount: row.topic_thread_count == null ? 0 : Number(row.topic_thread_count),
+    activeTopicThreadCount: row.active_topic_thread_count == null ? 0 : Number(row.active_topic_thread_count),
+    pendingThreadSummaryCount: row.pending_thread_summary_count == null ? 0 : Number(row.pending_thread_summary_count),
+    currentThreadLabel: row.current_thread_label || null,
+    currentThreadStatus: row.current_thread_status || null,
+    pendingBackgroundJobCount: row.pending_background_job_count == null ? 0 : Number(row.pending_background_job_count),
+    runningBackgroundJobCount: row.running_background_job_count == null ? 0 : Number(row.running_background_job_count),
+    failedBackgroundJobCount: row.failed_background_job_count == null ? 0 : Number(row.failed_background_job_count),
+    reportReady: Boolean(row.report_ready),
+    resumableTurnIndex: row.resumable_turn_index == null ? null : Number(row.resumable_turn_index),
     version: row.version,
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
@@ -235,10 +251,81 @@ returning *;
   async listRecent(filter = {}) {
     const result = await query(
       `
-select *
-from interview_sessions
-where ($1::text is null or status = $1)
-order by created_at desc, id desc
+select
+  s.*,
+  current_stage.stage_id as current_stage_id,
+  current_stage.category as current_stage_category,
+  current_stage.title as current_stage_title,
+  coalesce(stage_summary.plan_stage_count, 0) as plan_stage_count,
+  coalesce(node_summary.topic_node_count, 0) as topic_node_count,
+  coalesce(node_summary.covered_topic_count, 0) as covered_topic_count,
+  coalesce(thread_summary.topic_thread_count, 0) as topic_thread_count,
+  coalesce(thread_summary.active_topic_thread_count, 0) as active_topic_thread_count,
+  coalesce(thread_summary.pending_thread_summary_count, 0) as pending_thread_summary_count,
+  current_thread.label as current_thread_label,
+  current_thread.status as current_thread_status,
+  coalesce(job_summary.pending_background_job_count, 0) as pending_background_job_count,
+  coalesce(job_summary.running_background_job_count, 0) as running_background_job_count,
+  coalesce(job_summary.failed_background_job_count, 0) as failed_background_job_count,
+  coalesce(report_summary.report_ready, false) as report_ready,
+  nullif(s.current_run_payload_json ->> 'turnIndex', '')::integer as resumable_turn_index
+from interview_sessions s
+left join lateral (
+  select count(*)::int as plan_stage_count
+  from session_plan_stages
+  where session_id = s.id
+) stage_summary on true
+left join lateral (
+  select stage_id, category, title
+  from session_plan_stages
+  where session_id = s.id
+    and position = greatest(1, s.stage_index + 1)
+  limit 1
+) current_stage on true
+left join lateral (
+  select
+    count(*)::int as topic_node_count,
+    count(*) filter (where covered)::int as covered_topic_count
+  from session_topic_nodes
+  where session_id = s.id
+) node_summary on true
+left join lateral (
+  select
+    count(*)::int as topic_thread_count,
+    count(*) filter (where status = 'active')::int as active_topic_thread_count,
+    count(*) filter (
+      where coalesce(summary_job_json ->> 'status', 'idle') in ('pending', 'running')
+    )::int as pending_thread_summary_count
+  from session_topic_threads
+  where session_id = s.id
+) thread_summary on true
+left join lateral (
+  select label, status
+  from session_topic_threads
+  where session_id = s.id
+    and (
+      id = s.current_thread_id
+      or (s.current_thread_id is null and status = 'active')
+    )
+  order by case when id = s.current_thread_id then 0 else 1 end, updated_at desc, id asc
+  limit 1
+) current_thread on true
+left join lateral (
+  select
+    count(*) filter (where status in ('pending', 'running', 'leased'))::int as pending_background_job_count,
+    count(*) filter (where status = 'running')::int as running_background_job_count,
+    count(*) filter (where status = 'failed')::int as failed_background_job_count
+  from background_jobs
+  where session_id = s.id
+) job_summary on true
+left join lateral (
+  select true as report_ready
+  from session_reports
+  where session_id = s.id
+  limit 1
+) report_summary on true
+where ($1::text is null or s.status = $1)
+order by s.created_at desc, s.id desc
 limit $2;
 `,
       [
@@ -252,12 +339,83 @@ limit $2;
   async listResumableRuns(filter = {}) {
     const result = await query(
       `
-select *
-from interview_sessions
-where status = 'processing'
-  and coalesce(current_run_status, snapshot_json #>> '{currentRun,status}', '') = 'running'
-  and coalesce(current_run_kind, snapshot_json #>> '{currentRun,kind}', '') in ('start', 'answer')
-order by updated_at asc, id asc
+select
+  s.*,
+  current_stage.stage_id as current_stage_id,
+  current_stage.category as current_stage_category,
+  current_stage.title as current_stage_title,
+  coalesce(stage_summary.plan_stage_count, 0) as plan_stage_count,
+  coalesce(node_summary.topic_node_count, 0) as topic_node_count,
+  coalesce(node_summary.covered_topic_count, 0) as covered_topic_count,
+  coalesce(thread_summary.topic_thread_count, 0) as topic_thread_count,
+  coalesce(thread_summary.active_topic_thread_count, 0) as active_topic_thread_count,
+  coalesce(thread_summary.pending_thread_summary_count, 0) as pending_thread_summary_count,
+  current_thread.label as current_thread_label,
+  current_thread.status as current_thread_status,
+  coalesce(job_summary.pending_background_job_count, 0) as pending_background_job_count,
+  coalesce(job_summary.running_background_job_count, 0) as running_background_job_count,
+  coalesce(job_summary.failed_background_job_count, 0) as failed_background_job_count,
+  coalesce(report_summary.report_ready, false) as report_ready,
+  nullif(s.current_run_payload_json ->> 'turnIndex', '')::integer as resumable_turn_index
+from interview_sessions s
+left join lateral (
+  select count(*)::int as plan_stage_count
+  from session_plan_stages
+  where session_id = s.id
+) stage_summary on true
+left join lateral (
+  select stage_id, category, title
+  from session_plan_stages
+  where session_id = s.id
+    and position = greatest(1, s.stage_index + 1)
+  limit 1
+) current_stage on true
+left join lateral (
+  select
+    count(*)::int as topic_node_count,
+    count(*) filter (where covered)::int as covered_topic_count
+  from session_topic_nodes
+  where session_id = s.id
+) node_summary on true
+left join lateral (
+  select
+    count(*)::int as topic_thread_count,
+    count(*) filter (where status = 'active')::int as active_topic_thread_count,
+    count(*) filter (
+      where coalesce(summary_job_json ->> 'status', 'idle') in ('pending', 'running')
+    )::int as pending_thread_summary_count
+  from session_topic_threads
+  where session_id = s.id
+) thread_summary on true
+left join lateral (
+  select label, status
+  from session_topic_threads
+  where session_id = s.id
+    and (
+      id = s.current_thread_id
+      or (s.current_thread_id is null and status = 'active')
+    )
+  order by case when id = s.current_thread_id then 0 else 1 end, updated_at desc, id asc
+  limit 1
+) current_thread on true
+left join lateral (
+  select
+    count(*) filter (where status in ('pending', 'running', 'leased'))::int as pending_background_job_count,
+    count(*) filter (where status = 'running')::int as running_background_job_count,
+    count(*) filter (where status = 'failed')::int as failed_background_job_count
+  from background_jobs
+  where session_id = s.id
+) job_summary on true
+left join lateral (
+  select true as report_ready
+  from session_reports
+  where session_id = s.id
+  limit 1
+) report_summary on true
+where s.status = 'processing'
+  and coalesce(s.current_run_status, '') = 'running'
+  and coalesce(s.current_run_kind, '') in ('start', 'answer')
+order by s.updated_at asc, s.id asc
 limit $1;
 `,
       [

@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { QUESTION_LIBRARY } from "./question-bank.js";
 import { createDbQuestionRepository } from "../repositories/db/db-question-repository.js";
 import { createLogger } from "../lib/logger.js";
-import { searchSimilarKnowledge, upsertKnowledgeDocument } from "./knowledge-service.js";
+import { upsertKnowledgeDocument } from "./knowledge-service.js";
+import { collectQuestionCandidateIds, retrieveKnowledgeDocuments } from "./knowledge-retrieval-service.js";
 
 const questionRepository = createDbQuestionRepository();
 const questionBankLogger = createLogger({ component: "question-bank-service" });
@@ -304,19 +305,6 @@ function buildFollowupQueryText({ turn, turnAnalysis, reviewItem }) {
   ].filter(Boolean).join(" ");
 }
 
-async function safeSearchSimilarKnowledge(filter) {
-  try {
-    return await searchSimilarKnowledge(filter);
-  } catch (error) {
-    questionBankLogger.warn("question_bank.similar_search_failed", error, {
-      documentId: filter?.documentId || null,
-      queryPreview: String(filter?.query || "").slice(0, 120) || null,
-      documentType: filter?.documentType || null
-    });
-    return [];
-  }
-}
-
 async function collectFollowupCandidateIds({
   currentQuestionId,
   reviewItem,
@@ -324,48 +312,32 @@ async function collectFollowupCandidateIds({
   category,
   limit
 }) {
-  const semanticQuestionDocs = [];
-  if (reviewItem?.id) {
-    semanticQuestionDocs.push(...await safeSearchSimilarKnowledge({
-      documentId: `knowledge_${reviewItem.id}`,
-      documentType: "question",
+  try {
+    return await collectQuestionCandidateIds({
+      currentQuestionId,
+      reviewItem,
+      queryText,
+      category,
       limit
-    }));
+    });
+  } catch (error) {
+    questionBankLogger.warn("question_bank.followup_retrieval_failed", error, {
+      currentQuestionId,
+      category,
+      queryPreview: String(queryText || "").slice(0, 120) || null
+    });
+    const keywordQuestions = await questionRepository.search({
+      category: category || null,
+      q: queryText || null,
+      limit: Math.max(limit * 3, 10),
+      orderBy: "updated_desc"
+    });
+    return {
+      semanticDocs: [],
+      keywordQuestions,
+      candidateIds: uniqueIds(keywordQuestions.map((item) => item.id))
+    };
   }
-
-  if (currentQuestionId) {
-    semanticQuestionDocs.push(...await safeSearchSimilarKnowledge({
-      documentId: `knowledge_${currentQuestionId}`,
-      documentType: "question",
-      limit
-    }));
-  }
-
-  const keywordQuestions = await questionRepository.search({
-    category: category || null,
-    q: queryText || null,
-    limit: Math.max(limit * 3, 10),
-    orderBy: "updated_desc"
-  });
-  const categoryFallbackQuestions = keywordQuestions.length
-    ? []
-    : await questionRepository.search({
-        category: category || null,
-        limit: Math.max(limit * 3, 10),
-        orderBy: "updated_desc"
-      });
-
-  return {
-    semanticDocs: semanticQuestionDocs,
-    keywordQuestions: keywordQuestions.length ? keywordQuestions : categoryFallbackQuestions,
-    candidateIds: uniqueIds([
-      ...(reviewItem?.recommendedQuestionIds || []),
-      ...semanticQuestionDocs
-        .filter((item) => item.sourceTable === "question_items")
-        .map((item) => item.sourceId),
-      ...(keywordQuestions.length ? keywordQuestions : categoryFallbackQuestions).map((item) => item.id)
-    ])
-  };
 }
 
 export async function pickQuestionForInterview({
@@ -494,22 +466,46 @@ export async function recommendQuestionsForReview({
   limit = 3
 } = {}) {
   await ensureQuestionBankSeeded();
+  let semanticDocs = [];
+  try {
+    semanticDocs = await retrieveKnowledgeDocuments({
+      query: weaknessType || null,
+      documentType: "question",
+      limit: Math.max(limit * 3, 10)
+    });
+  } catch (error) {
+    questionBankLogger.warn("question_bank.review_retrieval_failed", error, {
+      category,
+      weaknessPreview: String(weaknessType || "").slice(0, 120) || null
+    });
+  }
+
+  const semanticQuestionIds = semanticDocs
+    .filter((item) => item.sourceTable === "question_items")
+    .map((item) => item.sourceId);
+  const semanticCandidates = await getQuestionBankItemsByIds(semanticQuestionIds);
   const strictCandidates = await questionRepository.search({
     category: category || null,
     q: weaknessType || null,
     limit: Math.max(limit * 3, 10),
     orderBy: "updated_desc"
   });
-  const candidates = strictCandidates.length
-    ? strictCandidates
+  const fallbackCandidates = strictCandidates.length || semanticCandidates.length
+    ? []
     : await questionRepository.search({
         category: category || null,
         limit: Math.max(limit * 3, 10),
         orderBy: "updated_desc"
       });
+  const candidates = uniqueIds([
+    ...semanticCandidates.map((item) => item.id),
+    ...strictCandidates.map((item) => item.id),
+    ...fallbackCandidates.map((item) => item.id)
+  ]);
   const excluded = new Set((excludeIds || []).filter(Boolean));
-  return candidates
+  return (await getQuestionBankItemsByIds(candidates))
     .filter((question) => !excluded.has(question.id))
+    .filter((question) => !category || question.category === category)
     .slice(0, limit);
 }
 

@@ -23,6 +23,10 @@ export class BackgroundJobRepository {
     throw new Error("BackgroundJobRepository.leaseByJobKey is not implemented.");
   }
 
+  async startLease(_jobKey, _workerId) {
+    throw new Error("BackgroundJobRepository.startLease is not implemented.");
+  }
+
   async heartbeatLease(_jobKey, _workerId, _options = {}) {
     throw new Error("BackgroundJobRepository.heartbeatLease is not implemented.");
   }

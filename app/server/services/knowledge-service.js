@@ -2,10 +2,9 @@ import { createDbKnowledgeRepository } from "../repositories/db/db-knowledge-rep
 import {
   scheduleKnowledgeEmbeddingSync,
   getKnowledgeEmbeddingStatus,
-  searchSimilarKnowledgeByDocument,
-  searchSimilarKnowledgeByText,
   syncPendingKnowledgeEmbeddings
 } from "./embedding-service.js";
+import { retrieveKnowledgeDocuments } from "./knowledge-retrieval-service.js";
 
 const knowledgeRepository = createDbKnowledgeRepository();
 
@@ -36,9 +35,5 @@ export async function syncKnowledgeEmbeddings(filter = {}) {
 }
 
 export async function searchSimilarKnowledge(filter = {}) {
-  if (filter.documentId) {
-    return searchSimilarKnowledgeByDocument(filter);
-  }
-
-  return searchSimilarKnowledgeByText(filter);
+  return retrieveKnowledgeDocuments(filter);
 }

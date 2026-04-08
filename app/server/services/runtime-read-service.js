@@ -201,6 +201,44 @@ function buildStructuredCurrentRun(base) {
   return currentRun;
 }
 
+function buildSessionReadModelSummary(sessionRecord, base) {
+  const planStageCount = Number(sessionRecord?.planStageCount || 0);
+  const topicNodeCount = Number(sessionRecord?.topicNodeCount || 0);
+  const coveredTopicCount = Number(sessionRecord?.coveredTopicCount || 0);
+  const topicThreadCount = Number(sessionRecord?.topicThreadCount || 0);
+  const activeTopicThreadCount = Number(sessionRecord?.activeTopicThreadCount || 0);
+  const pendingThreadSummaryCount = Number(sessionRecord?.pendingThreadSummaryCount || 0);
+  const pendingBackgroundJobCount = Number(sessionRecord?.pendingBackgroundJobCount || 0);
+  const runningBackgroundJobCount = Number(sessionRecord?.runningBackgroundJobCount || 0);
+  const failedBackgroundJobCount = Number(sessionRecord?.failedBackgroundJobCount || 0);
+
+  return {
+    planStageCount,
+    currentStage: sessionRecord?.currentStageTitle ? {
+      id: sessionRecord.currentStageId || null,
+      category: sessionRecord.currentStageCategory || null,
+      title: sessionRecord.currentStageTitle
+    } : null,
+    topicNodeCount,
+    coveredTopicCount,
+    uncoveredTopicCount: Math.max(0, topicNodeCount - coveredTopicCount),
+    topicThreadCount,
+    activeTopicThreadCount,
+    pendingThreadSummaryCount,
+    currentThread: sessionRecord?.currentThreadLabel ? {
+      id: sessionRecord.currentThreadId || base?.currentThreadId || null,
+      label: sessionRecord.currentThreadLabel,
+      status: sessionRecord.currentThreadStatus || null
+    } : null,
+    backgroundJobs: {
+      pendingCount: pendingBackgroundJobCount,
+      runningCount: runningBackgroundJobCount,
+      failedCount: failedBackgroundJobCount
+    },
+    reportReady: Boolean(sessionRecord?.reportReady)
+  };
+}
+
 function hydratePlanWithStages(basePlan, stageRows = []) {
   if (!stageRows.length) {
     return basePlan || null;
@@ -312,11 +350,13 @@ export function hydrateRuntimeSessionSummaryFromDbRecord(sessionRecord) {
     topicThreads: base.topicThreads || [],
     policy: base.policy || null,
     currentRun: buildStructuredCurrentRun(base),
+    readModelSummary: buildSessionReadModelSummary(sessionRecord, base),
     planJob: base.planJob || null,
     reportJob: base.reportJob || null,
     turns: Array.isArray(base.turns) ? base.turns : [],
     turnCount: sessionRecord.turnCount ?? (Array.isArray(base.turns) ? base.turns.length : 0),
-    report: base.report || null
+    report: base.report || null,
+    reportReady: sessionRecord.reportReady ?? Boolean(base.report)
   };
 }
 
@@ -363,10 +403,12 @@ export async function hydrateRuntimeSessionFromDbRecord(sessionRecord) {
     topicThreads: hydrateTopicThreads(base.topicThreads, threadRows),
     policy: base.policy || null,
     currentRun: buildStructuredCurrentRun(base),
+    readModelSummary: buildSessionReadModelSummary(sessionRecord, base),
     planJob: base.planJob || null,
     reportJob: base.reportJob || null,
     turns: turns.map((turn) => hydrateTurn(turn, assessmentByTurnIndex.get(turn.turnIndex))),
-    report: report?.snapshot || base.report || null
+    report: report?.snapshot || base.report || null,
+    reportReady: Boolean(report || sessionRecord.reportReady || base.report)
   };
 }
 

@@ -32,6 +32,7 @@ import {
   leaseNextBackgroundJob,
   listResumableBackgroundJobs,
   recoverBackgroundJobLeases,
+  startBackgroundJobLease,
   upsertBackgroundJobSnapshot,
   upsertBackgroundJobSnapshotInBackground
 } from "./background-job-service.js";
@@ -1028,10 +1029,11 @@ function buildBackgroundJobsView(session) {
   return jobs.sort((left, right) => {
     const statusWeight = {
       running: 0,
-      pending: 1,
-      failed: 2,
-      completed: 3,
-      idle: 4
+      leased: 1,
+      pending: 2,
+      failed: 3,
+      completed: 4,
+      idle: 5
     };
     return (
       (statusWeight[left.status] ?? 9) - (statusWeight[right.status] ?? 9) ||
@@ -1061,6 +1063,7 @@ function buildPublicSession(session) {
     turns: session.turns,
     nextQuestion: session.nextQuestion,
     report: session.report || null,
+    reportReady: Boolean(session.report),
     planJob: session.planJob || null,
     reportJob: session.reportJob || null,
     backgroundJobs: buildBackgroundJobsView(session),
@@ -1832,14 +1835,6 @@ async function runBackgroundJob({
     return;
   }
 
-  logger.info("background_job.started", {
-    jobKind: kind,
-    targetId,
-    source,
-    workerId,
-    scheduledLagMs: backgroundJobScheduledLagMs(leased),
-    ...backgroundJobAttemptMeta(leased)
-  });
   const heartbeat = startBackgroundJobLeaseHeartbeat(key, workerId);
   if (isSessionScopedBackgroundJob(kind) && (isProviderBackedBackgroundJob(kind) || kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY)) {
     const session = await loadSession(sessionId, {
@@ -1900,6 +1895,16 @@ async function runBackgroundJob({
       return;
     }
   }
+
+  const runningLease = await startBackgroundJobLease(key, workerId).catch(() => null);
+  logger.info("background_job.started", {
+    jobKind: kind,
+    targetId,
+    source,
+    workerId,
+    scheduledLagMs: backgroundJobScheduledLagMs(runningLease || leased),
+    ...backgroundJobAttemptMeta(runningLease || leased)
+  });
 
   const span = logger.startSpan("background_job", {
     jobKind: kind,
@@ -2639,7 +2644,15 @@ export async function listInterviewSessions({ status = null, limit = 100 } = {})
       turnCount: session.turnCount ?? (session.turns?.length || 0),
       currentRun: session.currentRun || null,
       currentThreadId: session.currentThreadId || null,
-      reportReady: Boolean(session.report),
+      currentThreadLabel: session.readModelSummary?.currentThread?.label || null,
+      currentStage: session.readModelSummary?.currentStage || null,
+      reportReady: session.reportReady ?? Boolean(session.report),
+      readModelSummary: session.readModelSummary || null,
+      backgroundJobSummary: session.readModelSummary?.backgroundJobs || {
+        pendingCount: 0,
+        runningCount: 0,
+        failedCount: 0
+      },
       backgroundJobs: buildBackgroundJobsView(session)
     }));
 }
@@ -2781,7 +2794,7 @@ export async function resumePendingSessions() {
     }
 
     if (session.currentRun?.kind === "answer") {
-      const turnIndex = Number(session.currentRun?.payload?.turnIndex) || session.turns.at(-1)?.index;
+      const turnIndex = Number(session.resumableTurnIndex || session.currentRun?.payload?.turnIndex) || session.turns.at(-1)?.index;
       if (turnIndex) {
         void processAnswerRun(session.id, turnIndex);
       }

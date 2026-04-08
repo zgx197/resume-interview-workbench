@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { config } from "../config.js";
+import { query } from "../db/client.js";
 import { closeDbPool } from "../db/client.js";
 import { loadEnvFile } from "../env.js";
 import { loadInterviewCatalog } from "../services/catalog-loader.js";
@@ -20,8 +21,46 @@ async function waitForSession(sessionId, predicate, timeoutMs = 180000) {
   throw new Error(`Timed out waiting for session ${sessionId}`);
 }
 
+function buildDatabaseUnavailableError(error) {
+  const details = [
+    `Database is not reachable at ${config.databaseUrl}.`,
+    `Current runtime storage mode is ${config.interviewRuntimeStorageMode}, so npm run check requires PostgreSQL to be running.`,
+    "Expected local setup:",
+    "1. Start Docker Desktop / Docker daemon",
+    "2. Run npm run db:up",
+    "3. Run npm run db:migrate",
+    "4. Re-run npm run check",
+    "Optional helpers:",
+    "- npm run db:doctor",
+    "- npm run setup:local"
+  ];
+
+  if (error?.code) {
+    details.push(`Underlying error: ${error.code}`);
+  }
+
+  return new Error(details.join("\n"));
+}
+
+async function ensureDatabaseReady() {
+  try {
+    await query("select 1 as ok;");
+  } catch (error) {
+    if ([
+      "ECONNREFUSED",
+      "ENOTFOUND",
+      "EHOSTUNREACH",
+      "ETIMEDOUT"
+    ].includes(error?.code)) {
+      throw buildDatabaseUnavailableError(error);
+    }
+    throw error;
+  }
+}
+
 async function main() {
   await loadEnvFile();
+  await ensureDatabaseReady();
   const packageFiles = await fs.readdir(config.resumePackageDir);
   const catalog = await loadInterviewCatalog();
   const resumePackage = await loadResumePackage();

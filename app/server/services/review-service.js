@@ -65,23 +65,45 @@ function deriveReviewProgress(item, attempts = []) {
   };
 }
 
+async function hydrateReviewItems(items = []) {
+  const withRecommendations = await hydrateReviewItemRecommendations(items);
+  const attemptGroups = await Promise.all(withRecommendations.map(async (item) => {
+    const attempts = await reviewRepository.listAttempts(item.reviewKey, {
+      limit: 20
+    });
+    return [item.reviewKey, attempts];
+  }));
+  const attemptsByReviewKey = new Map(attemptGroups);
+
+  return withRecommendations.map((item) => {
+    const attempts = attemptsByReviewKey.get(item.reviewKey) || [];
+    const progress = deriveReviewProgress(item, attempts);
+    return {
+      ...item,
+      latestAttempt: progress.latestAttempt,
+      attemptCount: progress.attemptCount,
+      masteryLevel: progress.masteryLevel,
+      status: progress.status,
+      reviewProgress: {
+        latestAttempt: progress.latestAttempt,
+        attemptCount: progress.attemptCount,
+        masteryLevel: progress.masteryLevel,
+        status: progress.status
+      }
+    };
+  });
+}
+
 async function hydrateReviewSetRecommendations(sets = []) {
-  const questionIds = sets.flatMap((set) => (
-    (set.items || []).flatMap((item) => item.reviewItem?.recommendedQuestionIds || [])
-  ));
-  const questions = await getQuestionBankItemsByIds(questionIds);
-  const questionMap = new Map(questions.map((question) => [question.id, question]));
+  const reviewItems = sets.flatMap((set) => (set.items || []).map((item) => item.reviewItem).filter(Boolean));
+  const hydratedItems = await hydrateReviewItems(reviewItems);
+  const hydratedById = new Map(hydratedItems.map((item) => [item.id, item]));
 
   return sets.map((set) => ({
     ...set,
     items: (set.items || []).map((item) => ({
       ...item,
-      reviewItem: {
-        ...item.reviewItem,
-        recommendedQuestions: (item.reviewItem?.recommendedQuestionIds || [])
-          .map((questionId) => questionMap.get(questionId))
-          .filter(Boolean)
-      }
+      reviewItem: hydratedById.get(item.reviewItem?.id) || item.reviewItem
     }))
   }));
 }
@@ -167,7 +189,7 @@ export async function syncReviewArtifactsForTurn(session, turn) {
 }
 
 export async function listReviewItems(filter = {}) {
-  return hydrateReviewItemRecommendations(await reviewRepository.list(filter));
+  return hydrateReviewItems(await reviewRepository.list(filter));
 }
 
 export async function getReviewItem(reviewKey) {
@@ -175,7 +197,7 @@ export async function getReviewItem(reviewKey) {
   if (!item) {
     return null;
   }
-  return (await hydrateReviewItemRecommendations([item]))[0];
+  return (await hydrateReviewItems([item]))[0];
 }
 
 export async function updateReviewItemStatus(reviewKey, patch = {}) {
@@ -209,7 +231,7 @@ export async function updateReviewItemStatus(reviewKey, patch = {}) {
     updatedAt: updated.updatedAt
   });
 
-  return (await hydrateReviewItemRecommendations([updated]))[0];
+  return (await hydrateReviewItems([updated]))[0];
 }
 
 export async function listReviewAttempts(reviewKey, filter = {}) {
@@ -309,14 +331,29 @@ export async function saveReviewSet(input = {}) {
 
 export async function recommendReviewSet(input = {}) {
   const now = new Date().toISOString();
-  const status = String(input.status || "pending").trim() || "pending";
+  const status = String(input.status || "").trim() || null;
   const limit = Number.isFinite(Number(input.limit)) ? Math.max(1, Math.floor(Number(input.limit))) : 5;
-  const items = await listReviewItems({
+  const candidateItems = await listReviewItems({
     status,
     sessionId: input.sessionId || null,
     topicId: input.topicId || null,
-    limit
+    limit: Math.max(limit * 4, 12)
   });
+  const items = candidateItems
+    .filter((item) => item.status !== "mastered")
+    .sort((left, right) => {
+      const leftLatest = Date.parse(left.latestAttempt?.attemptedAt || "");
+      const rightLatest = Date.parse(right.latestAttempt?.attemptedAt || "");
+      const leftAttemptGap = Number.isFinite(leftLatest) ? leftLatest : 0;
+      const rightAttemptGap = Number.isFinite(rightLatest) ? rightLatest : 0;
+      return (
+        (right.priority || 0) - (left.priority || 0)
+        || (left.masteryLevel || 0) - (right.masteryLevel || 0)
+        || leftAttemptGap - rightAttemptGap
+        || String(left.updatedAt || "").localeCompare(String(right.updatedAt || ""))
+      );
+    })
+    .slice(0, limit);
   const title = String(input.title || "").trim() || "Recommended Review Set";
 
   if (!input.persist) {
@@ -328,7 +365,7 @@ export async function recommendReviewSet(input = {}) {
       status: "draft",
       metadata: {
         source: "recommended",
-        status,
+        status: status || "all_active",
         sessionId: input.sessionId || null,
         topicId: input.topicId || null,
         reviewItemCount: items.length
