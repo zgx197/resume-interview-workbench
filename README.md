@@ -79,6 +79,7 @@
 - [面试引擎重构设计](./docs/interview-engine-redesign.md)
 - [日志与可观测性设计](./docs/logging-observability-design.md)
 - [数据库与知识检索架构落地方案](./docs/database-architecture-plan.md)
+- [提交命名与 UTF-8 + LF 规范](./docs/commit-convention.md)
 
 ## 快速开始
 

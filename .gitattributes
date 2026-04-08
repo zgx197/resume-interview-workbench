@@ -1,4 +1,5 @@
-# Default all text files to LF so checkout/commit behavior is stable across platforms.
+# Repository policy: all text files use UTF-8 + LF so checkout/commit behavior
+# stays stable across Windows/macOS/Linux.
 * text=auto eol=lf
 
 # Explicit UTF-8 + LF policy for source, config, and documentation files that
@@ -10,8 +11,12 @@
 *.html text working-tree-encoding=UTF-8 eol=lf
 *.json text working-tree-encoding=UTF-8 eol=lf
 *.md text working-tree-encoding=UTF-8 eol=lf
+*.sql text working-tree-encoding=UTF-8 eol=lf
+*.sh text working-tree-encoding=UTF-8 eol=lf
 *.txt text working-tree-encoding=UTF-8 eol=lf
+*.cmd text working-tree-encoding=UTF-8 eol=lf
 *.svg text working-tree-encoding=UTF-8 eol=lf
+*.xml text working-tree-encoding=UTF-8 eol=lf
 *.yml text working-tree-encoding=UTF-8 eol=lf
 *.yaml text working-tree-encoding=UTF-8 eol=lf
 *.ps1 text working-tree-encoding=UTF-8 eol=lf
