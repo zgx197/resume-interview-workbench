@@ -42,4 +42,8 @@ export class BackgroundJobRepository {
   async recoverLeases(_filter = {}) {
     throw new Error("BackgroundJobRepository.recoverLeases is not implemented.");
   }
+
+  async deleteOrphanedSessionJobs(_filter = {}) {
+    throw new Error("BackgroundJobRepository.deleteOrphanedSessionJobs is not implemented.");
+  }
 }

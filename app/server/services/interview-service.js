@@ -26,6 +26,7 @@ import { ensureQuestionBankSeeded, pickFollowupQuestionForInterview, pickQuestio
 import { syncReviewArtifactsForTurn } from "./review-service.js";
 import {
   completeBackgroundJobLease,
+  deleteOrphanedSessionBackgroundJobs,
   failBackgroundJobLease,
   heartbeatBackgroundJobLease,
   leaseBackgroundJob,
@@ -788,6 +789,11 @@ function backgroundJobScheduledLagMs(job) {
   return Math.max(0, Date.now() - scheduled);
 }
 
+function isMissingSessionError(error) {
+  return error?.code === "SESSION_NOT_FOUND"
+    || /Session not found in database:/i.test(String(error?.message || ""));
+}
+
 function startBackgroundJobLeaseHeartbeat(jobKey, workerId) {
   return setInterval(() => {
     void heartbeatBackgroundJobLease(jobKey, workerId, {
@@ -845,8 +851,19 @@ export function startBackgroundJobWorker() {
     return;
   }
 
-  void recoverBackgroundJobLeases({
+  void deleteOrphanedSessionBackgroundJobs({
     kinds: backgroundJobKinds()
+  }).then((deletedCount) => {
+    if (deletedCount > 0) {
+      interviewLogger.warn("background_job.orphaned_deleted", {
+        workerId: BACKGROUND_JOB_WORKER_ID,
+        deletedCount
+      });
+    }
+
+    return recoverBackgroundJobLeases({
+      kinds: backgroundJobKinds()
+    });
   }).then((recoveredJobs) => {
     if (recoveredJobs.length) {
       interviewLogger.warn("background_job.recovered", {
@@ -1836,87 +1853,89 @@ async function runBackgroundJob({
   }
 
   const heartbeat = startBackgroundJobLeaseHeartbeat(key, workerId);
-  if (isSessionScopedBackgroundJob(kind) && (isProviderBackedBackgroundJob(kind) || kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY)) {
-    const session = await loadSession(sessionId, {
-      jobId: key,
-      threadId: targetId || undefined
-    });
-    const preflight = resolveBackgroundJobPreflight(session, kind, targetId, key);
-    if (preflight?.shouldSkip) {
-      clearInterval(heartbeat);
-      await completeBackgroundJobLease(key, workerId, {
-        source,
-        skipped: true
+  let span = null;
+  try {
+    if (isSessionScopedBackgroundJob(kind) && (isProviderBackedBackgroundJob(kind) || kind === BACKGROUND_JOB_KIND.THREAD_SUMMARY)) {
+      const session = await loadSession(sessionId, {
+        jobId: key,
+        threadId: targetId || undefined
       });
-      logger.info("background_job.skipped", {
-        jobKind: kind,
-        targetId,
-        source,
-        workerId,
-        reason: "preflight_skip",
-        ...backgroundJobAttemptMeta(leased)
-      });
-      pendingBackgroundJobs.delete(key);
-      return;
-    }
-    if (preflight?.shouldRetry) {
-      clearInterval(heartbeat);
-      const failedLease = await failBackgroundJobLease(key, workerId, {
-        retryDelayMs: preflight.retryDelayMs,
-        lastError: "preflight_retry",
-        result: {
+      const preflight = resolveBackgroundJobPreflight(session, kind, targetId, key);
+      if (preflight?.shouldSkip) {
+        clearInterval(heartbeat);
+        await completeBackgroundJobLease(key, workerId, {
           source,
-          quiet: Boolean(preflight.quiet)
-        }
-      });
-      if (failedLease?.status === "pending") {
-        if (!preflight.quiet) {
-          logger.info("background_job.retry_scheduled", {
-            jobKind: kind,
-            targetId,
-            source,
-            workerId,
-            retryDelayMs: preflight.retryDelayMs,
-            reason: "preflight_retry",
-            ...backgroundJobAttemptMeta(failedLease)
-          });
-        }
-      } else {
-        logger.error("background_job.failed", new Error("Background job retry budget exhausted during preflight."), {
+          skipped: true,
+          reason: "preflight_skip"
+        });
+        logger.info("background_job.skipped", {
           jobKind: kind,
           targetId,
           source,
           workerId,
-          reason: "preflight_retry_exhausted",
-          ...backgroundJobAttemptMeta(failedLease || leased)
+          reason: "preflight_skip",
+          ...backgroundJobAttemptMeta(leased)
         });
+        pendingBackgroundJobs.delete(key);
+        return;
       }
-      pendingBackgroundJobs.delete(key);
-      return;
+      if (preflight?.shouldRetry) {
+        clearInterval(heartbeat);
+        const failedLease = await failBackgroundJobLease(key, workerId, {
+          retryDelayMs: preflight.retryDelayMs,
+          lastError: "preflight_retry",
+          result: {
+            source,
+            quiet: Boolean(preflight.quiet)
+          }
+        });
+        if (failedLease?.status === "pending") {
+          if (!preflight.quiet) {
+            logger.info("background_job.retry_scheduled", {
+              jobKind: kind,
+              targetId,
+              source,
+              workerId,
+              retryDelayMs: preflight.retryDelayMs,
+              reason: "preflight_retry",
+              ...backgroundJobAttemptMeta(failedLease)
+            });
+          }
+        } else {
+          logger.error("background_job.failed", new Error("Background job retry budget exhausted during preflight."), {
+            jobKind: kind,
+            targetId,
+            source,
+            workerId,
+            reason: "preflight_retry_exhausted",
+            ...backgroundJobAttemptMeta(failedLease || leased)
+          });
+        }
+        pendingBackgroundJobs.delete(key);
+        return;
+      }
     }
-  }
 
-  const runningLease = await startBackgroundJobLease(key, workerId).catch(() => null);
-  logger.info("background_job.started", {
-    jobKind: kind,
-    targetId,
-    source,
-    workerId,
-    scheduledLagMs: backgroundJobScheduledLagMs(runningLease || leased),
-    ...backgroundJobAttemptMeta(runningLease || leased)
-  });
+    const runningLease = await startBackgroundJobLease(key, workerId).catch(() => null);
+    logger.info("background_job.started", {
+      jobKind: kind,
+      targetId,
+      source,
+      workerId,
+      scheduledLagMs: backgroundJobScheduledLagMs(runningLease || leased),
+      ...backgroundJobAttemptMeta(runningLease || leased)
+    });
 
-  const span = logger.startSpan("background_job", {
-    jobKind: kind,
-    targetId
-  });
-  let retryState = {
-    shouldRetry: false,
-    retryDelayMs: null,
-    quiet: false
-  };
+    span = logger.startSpan("background_job", {
+      jobKind: kind,
+      targetId
+    });
+    let retryState = {
+      shouldRetry: false,
+      retryDelayMs: null,
+      quiet: false
+    };
 
-  try {
     let result = false;
     switch (kind) {
       case BACKGROUND_JOB_KIND.PLAN_REFRESH:
@@ -1946,8 +1965,8 @@ async function runBackgroundJob({
       : {
           shouldRetry: Boolean(result),
           retryDelayMs: null,
-          quiet: false
-        };
+      quiet: false
+    };
     span.end({
       jobKind: kind,
       targetId,
@@ -2006,10 +2025,31 @@ async function runBackgroundJob({
       });
     }
   } catch (error) {
-    span.fail(error, {
-      jobKind: kind,
-      targetId
-    });
+    if (span) {
+      span.fail(error, {
+        jobKind: kind,
+        targetId
+      });
+    }
+
+    if (isMissingSessionError(error)) {
+      clearInterval(heartbeat);
+      const completedLease = await completeBackgroundJobLease(key, workerId, {
+        source,
+        targetId,
+        skipped: true,
+        reason: "session_missing"
+      }).catch(() => null);
+      logger.warn("background_job.skipped", {
+        jobKind: kind,
+        targetId,
+        source,
+        workerId,
+        reason: "session_missing",
+        ...backgroundJobAttemptMeta(completedLease || leased)
+      });
+      return;
+    }
 
     if (isSessionScopedBackgroundJob(kind) && sessionId) {
       try {

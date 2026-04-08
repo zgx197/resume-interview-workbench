@@ -166,6 +166,14 @@ where kind = any($1::text[])
   and status = any($2::text[])
   and ($3::text is null or session_id = $3)
   and (
+    session_id is null
+    or exists (
+      select 1
+      from interview_sessions session
+      where session.id = background_jobs.session_id
+    )
+  )
+  and (
     (status = 'pending' and scheduled_at <= now())
     or (
       status in ('leased', 'running')
@@ -195,6 +203,14 @@ with candidate as (
   where kind = any($1::text[])
     and status = any($2::text[])
     and scheduled_at <= now()
+    and (
+      session_id is null
+      or exists (
+        select 1
+        from interview_sessions session
+        where session.id = background_jobs.session_id
+      )
+    )
     and (
       lease_expires_at is null
       or lease_expires_at <= now()
@@ -241,6 +257,14 @@ set
 where job_key = $1
   and scheduled_at <= now()
   and attempts < max_attempts
+  and (
+    session_id is null
+    or exists (
+      select 1
+      from interview_sessions session
+      where session.id = background_jobs.session_id
+    )
+  )
   and (
     lease_expires_at is null
     or lease_expires_at <= now()
@@ -387,6 +411,25 @@ returning *;
       ]
     );
     return result.rows.map(mapBackgroundJobRow);
+  }
+
+  async deleteOrphanedSessionJobs(filter = {}) {
+    const kinds = Array.isArray(filter.kinds) && filter.kinds.length ? filter.kinds : null;
+    const result = await query(
+      `
+delete from background_jobs
+where session_id is not null
+  and ($1::text[] is null or kind = any($1::text[]))
+  and not exists (
+    select 1
+    from interview_sessions session
+    where session.id = background_jobs.session_id
+  )
+returning id;
+`,
+      [kinds]
+    );
+    return result.rowCount || 0;
   }
 }
 

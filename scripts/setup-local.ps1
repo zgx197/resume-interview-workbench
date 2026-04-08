@@ -1,6 +1,8 @@
 param(
   [ValidateSet("setup", "up", "doctor", "migrate", "check")]
-  [string]$Task = "setup"
+  [string]$Task = "setup",
+  [int]$Port = 3000,
+  [switch]$NoBrowser
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,11 +22,30 @@ function Invoke-RepoCommand {
   }
 }
 
+function Start-AppAfterSetup {
+  Write-Host "[setup-local] starting local web app"
+  $devScript = Join-Path $PSScriptRoot "dev.ps1"
+  $arguments = @(
+    "-ExecutionPolicy", "Bypass",
+    "-File", $devScript,
+    "-Port", $Port
+  )
+  if ($NoBrowser) {
+    $arguments += "-NoBrowser"
+  }
+
+  & "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" @arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to start local web app."
+  }
+}
+
 Push-Location $repoRoot
 try {
   switch ($Task) {
     "setup" {
       Invoke-RepoCommand -Label "running npm run setup:local" -Command @("npm.cmd", "run", "setup:local")
+      Start-AppAfterSetup
     }
     "up" {
       Invoke-RepoCommand -Label "running npm run db:up" -Command @("npm.cmd", "run", "db:up")

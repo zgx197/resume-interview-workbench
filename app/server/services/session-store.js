@@ -119,7 +119,10 @@ export async function loadSession(sessionId, logContext = {}) {
 
     if (!session) {
       if (!shouldPersistSessionsToFile()) {
-        throw new Error(`Session not found in database: ${sessionId}`);
+        const error = new Error(`Session not found in database: ${sessionId}`);
+        error.code = "SESSION_NOT_FOUND";
+        error.sessionId = sessionId;
+        throw error;
       }
 
       session = await readJson(filePath, {
