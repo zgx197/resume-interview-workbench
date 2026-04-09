@@ -23,6 +23,10 @@ export class ReviewRepository {
     throw new Error("ReviewRepository.listAttempts is not implemented.");
   }
 
+  async listAttemptsByReviewKeys(_reviewKeys = [], _filter = {}) {
+    throw new Error("ReviewRepository.listAttemptsByReviewKeys is not implemented.");
+  }
+
   async saveSet(_input) {
     throw new Error("ReviewRepository.saveSet is not implemented.");
   }

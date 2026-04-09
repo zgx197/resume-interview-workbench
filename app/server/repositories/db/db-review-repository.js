@@ -307,6 +307,36 @@ limit $2;
     return result.rows.map(mapAttemptRow);
   }
 
+  async listAttemptsByReviewKeys(reviewKeys = [], filter = {}) {
+    const normalizedKeys = [...new Set((reviewKeys || []).map((item) => String(item || "").trim()).filter(Boolean))];
+    if (!normalizedKeys.length) {
+      return new Map();
+    }
+
+    const perKeyLimit = filter.limit || 20;
+    const result = await query(
+      `
+select *
+from review_item_attempts
+where review_key = any($1::text[])
+order by review_key asc, attempted_at desc, created_at desc;
+`,
+      [normalizedKeys]
+    );
+
+    const attemptsByReviewKey = new Map();
+    for (const row of result.rows) {
+      const current = attemptsByReviewKey.get(row.review_key) || [];
+      if (current.length >= perKeyLimit) {
+        continue;
+      }
+      current.push(mapAttemptRow(row));
+      attemptsByReviewKey.set(row.review_key, current);
+    }
+
+    return attemptsByReviewKey;
+  }
+
   async saveSet(input) {
     const result = await query(
       `

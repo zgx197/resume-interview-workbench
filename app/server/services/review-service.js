@@ -44,6 +44,36 @@ async function hydrateReviewItemRecommendations(items = []) {
   }));
 }
 
+function buildReviewPriorityScore(item, progress) {
+  const latestAttemptTime = Date.parse(progress.latestAttempt?.attemptedAt || "");
+  const daysSinceLatestAttempt = Number.isFinite(latestAttemptTime)
+    ? Math.max(0, (Date.now() - latestAttemptTime) / (1000 * 60 * 60 * 24))
+    : 14;
+  return Number((
+    (item.priority || 0) * 2
+    + daysSinceLatestAttempt
+    - (progress.masteryLevel || 0) * 15
+    - (progress.attemptCount || 0) * 2
+    + (progress.status === "pending" ? 12 : 0)
+    + (progress.status === "reviewing" ? 4 : 0)
+    - (progress.status === "mastered" ? 20 : 0)
+  ).toFixed(2));
+}
+
+function buildReviewRecommendations(item, progress) {
+  return {
+    recommendationReason: progress.status === "mastered"
+      ? "该弱项已接近掌握，适合低频抽查。"
+      : progress.attemptCount === 0
+        ? "该弱项尚未开始复习，建议优先安排首轮补强。"
+        : "该弱项已进入复习中，建议继续围绕同主题强化。",
+    suggestedAction: progress.status === "mastered"
+      ? "spot_check"
+      : (progress.attemptCount === 0 ? "start_review" : "continue_review"),
+    suggestedQuestionIds: item.recommendedQuestionIds || []
+  };
+}
+
 function deriveReviewProgress(item, attempts = []) {
   const latestAttempt = attempts[0] || null;
   const successfulAttempts = attempts.filter((attempt) => (
@@ -67,28 +97,29 @@ function deriveReviewProgress(item, attempts = []) {
 
 async function hydrateReviewItems(items = []) {
   const withRecommendations = await hydrateReviewItemRecommendations(items);
-  const attemptGroups = await Promise.all(withRecommendations.map(async (item) => {
-    const attempts = await reviewRepository.listAttempts(item.reviewKey, {
-      limit: 20
-    });
-    return [item.reviewKey, attempts];
-  }));
-  const attemptsByReviewKey = new Map(attemptGroups);
+  const attemptsByReviewKey = await reviewRepository.listAttemptsByReviewKeys(
+    withRecommendations.map((item) => item.reviewKey),
+    { limit: 20 }
+  );
 
   return withRecommendations.map((item) => {
     const attempts = attemptsByReviewKey.get(item.reviewKey) || [];
     const progress = deriveReviewProgress(item, attempts);
+    const reviewPriorityScore = buildReviewPriorityScore(item, progress);
     return {
       ...item,
       latestAttempt: progress.latestAttempt,
       attemptCount: progress.attemptCount,
       masteryLevel: progress.masteryLevel,
       status: progress.status,
+      reviewPriorityScore,
+      recommendations: buildReviewRecommendations(item, progress),
       reviewProgress: {
         latestAttempt: progress.latestAttempt,
         attemptCount: progress.attemptCount,
         masteryLevel: progress.masteryLevel,
-        status: progress.status
+        status: progress.status,
+        priorityScore: reviewPriorityScore
       }
     };
   });
@@ -101,6 +132,13 @@ async function hydrateReviewSetRecommendations(sets = []) {
 
   return sets.map((set) => ({
     ...set,
+    summary: {
+      itemCount: (set.items || []).length,
+      pendingCount: (set.items || []).filter((item) => item.reviewItem?.status === "pending").length,
+      reviewingCount: (set.items || []).filter((item) => item.reviewItem?.status === "reviewing").length,
+      masteredCount: (set.items || []).filter((item) => item.reviewItem?.status === "mastered").length,
+      focusTopics: [...new Set((set.items || []).map((item) => item.reviewItem?.topicLabel).filter(Boolean))].slice(0, 5)
+    },
     items: (set.items || []).map((item) => ({
       ...item,
       reviewItem: hydratedById.get(item.reviewItem?.id) || item.reviewItem
@@ -342,14 +380,10 @@ export async function recommendReviewSet(input = {}) {
   const items = candidateItems
     .filter((item) => item.status !== "mastered")
     .sort((left, right) => {
-      const leftLatest = Date.parse(left.latestAttempt?.attemptedAt || "");
-      const rightLatest = Date.parse(right.latestAttempt?.attemptedAt || "");
-      const leftAttemptGap = Number.isFinite(leftLatest) ? leftLatest : 0;
-      const rightAttemptGap = Number.isFinite(rightLatest) ? rightLatest : 0;
       return (
-        (right.priority || 0) - (left.priority || 0)
+        (right.reviewPriorityScore || 0) - (left.reviewPriorityScore || 0)
+        || (right.priority || 0) - (left.priority || 0)
         || (left.masteryLevel || 0) - (right.masteryLevel || 0)
-        || leftAttemptGap - rightAttemptGap
         || String(left.updatedAt || "").localeCompare(String(right.updatedAt || ""))
       );
     })
@@ -368,7 +402,8 @@ export async function recommendReviewSet(input = {}) {
         status: status || "all_active",
         sessionId: input.sessionId || null,
         topicId: input.topicId || null,
-        reviewItemCount: items.length
+        reviewItemCount: items.length,
+        focusTopics: [...new Set(items.map((item) => item.topicLabel).filter(Boolean))].slice(0, 5)
       },
       createdAt: now,
       updatedAt: now,
@@ -392,7 +427,8 @@ export async function recommendReviewSet(input = {}) {
     metadata: {
       sourceStatus: status,
       sessionId: input.sessionId || null,
-      topicId: input.topicId || null
+      topicId: input.topicId || null,
+      focusTopics: [...new Set(items.map((item) => item.topicLabel).filter(Boolean))].slice(0, 5)
     },
     reviewKeys: items.map((item) => item.reviewKey)
   });

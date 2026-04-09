@@ -3,7 +3,7 @@ import { QUESTION_LIBRARY } from "./question-bank.js";
 import { createDbQuestionRepository } from "../repositories/db/db-question-repository.js";
 import { createLogger } from "../lib/logger.js";
 import { upsertKnowledgeDocument } from "./knowledge-service.js";
-import { collectQuestionCandidateIds, retrieveKnowledgeDocuments } from "./knowledge-retrieval-service.js";
+import { retrieveQuestionCandidates } from "./knowledge-retrieval-service.js";
 
 const questionRepository = createDbQuestionRepository();
 const questionBankLogger = createLogger({ component: "question-bank-service" });
@@ -19,14 +19,6 @@ const CATEGORY_LABELS = {
 
 function computeHash(value) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex");
-}
-
-function tokenize(text) {
-  return String(text || "")
-    .toLowerCase()
-    .split(/[\s,.;:!?，。；：！？/()（）\-]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 2);
 }
 
 function toTagLabel(tagKey) {
@@ -161,8 +153,8 @@ export async function getQuestionBankItem(questionId) {
 
 export async function getQuestionBankItemsByIds(questionIds = []) {
   await ensureQuestionBankSeeded();
-  const uniqueIds = [...new Set((questionIds || []).map((item) => String(item || "").trim()).filter(Boolean))];
-  const items = await Promise.all(uniqueIds.map((questionId) => questionRepository.getById(questionId)));
+  const resolvedIds = [...new Set((questionIds || []).map((item) => String(item || "").trim()).filter(Boolean))];
+  const items = await Promise.all(resolvedIds.map((questionId) => questionRepository.getById(questionId)));
   return items.filter(Boolean);
 }
 
@@ -265,31 +257,6 @@ export async function recordQuestionOutcome(questionId, assessment, { followupCo
   });
 }
 
-function scoreQuestionCandidate(question, { queryText = "", excludeIds = [] } = {}) {
-  if (!question || excludeIds.includes(question.id)) {
-    return Number.NEGATIVE_INFINITY;
-  }
-
-  const usageStats = question.usageStats || {};
-  const content = [
-    question.canonicalText,
-    ...(question.tags || []).map((tag) => tag.label),
-    ...(question.variants || []).map((variant) => variant.text)
-  ].join("\n").toLowerCase();
-  const tokens = tokenize(queryText);
-  const tokenHits = tokens.reduce((count, token) => count + (content.includes(token) ? 1 : 0), 0);
-  const askedCount = Number(usageStats.askedCount || 0);
-  const answeredCount = Number(usageStats.answeredCount || 0);
-  const avgScore = Number.isFinite(Number(usageStats.avgScore)) ? Number(usageStats.avgScore) : null;
-
-  return (
-    tokenHits * 10
-    + (avgScore == null ? 2 : 0)
-    - askedCount * 0.6
-    - answeredCount * 0.2
-  );
-}
-
 function buildFollowupQueryText({ turn, turnAnalysis, reviewItem }) {
   const evidenceSnippet = String(turn?.answer || "").trim().slice(0, 240);
   return [
@@ -305,19 +272,21 @@ function buildFollowupQueryText({ turn, turnAnalysis, reviewItem }) {
   ].filter(Boolean).join(" ");
 }
 
-async function collectFollowupCandidateIds({
+async function collectFollowupCandidates({
   currentQuestionId,
   reviewItem,
   queryText,
   category,
+  excludeIds,
   limit
 }) {
   try {
-    return await collectQuestionCandidateIds({
+    return await retrieveQuestionCandidates({
       currentQuestionId,
       reviewItem,
       queryText,
       category,
+      excludeIds,
       limit
     });
   } catch (error) {
@@ -335,7 +304,16 @@ async function collectFollowupCandidateIds({
     return {
       semanticDocs: [],
       keywordQuestions,
-      candidateIds: uniqueIds(keywordQuestions.map((item) => item.id))
+      candidateIds: uniqueIds(keywordQuestions.map((item) => item.id)),
+      items: keywordQuestions.map((question, index) => ({
+        question,
+        score: Math.max(1, keywordQuestions.length - index),
+        retrievalSignals: {
+          semantic: false,
+          reviewRecommended: false,
+          keywordMatched: true
+        }
+      }))
     };
   }
 }
@@ -351,27 +329,14 @@ export async function pickQuestionForInterview({
     return null;
   }
 
-  const candidates = await questionRepository.search({
+  const retrieval = await retrieveQuestionCandidates({
     category,
-    limit: Math.max(limit, 20)
+    queryText,
+    excludeIds,
+    limit: Math.max(limit, 8)
   });
 
-  const ranked = candidates
-    .map((question) => ({
-      question,
-      score: scoreQuestionCandidate(question, {
-        queryText,
-        excludeIds
-      })
-    }))
-    .filter((entry) => Number.isFinite(entry.score))
-    .sort((left, right) => (
-      right.score - left.score
-      || (left.question.usageStats?.askedCount || 0) - (right.question.usageStats?.askedCount || 0)
-      || String(left.question.id).localeCompare(String(right.question.id))
-    ));
-
-  return ranked[0]?.question || null;
+  return retrieval.items[0]?.question || null;
 }
 
 export async function pickFollowupQuestionForInterview({
@@ -395,68 +360,18 @@ export async function pickFollowupQuestionForInterview({
     turnAnalysis,
     reviewItem
   });
-  const {
-    semanticDocs,
-    keywordQuestions,
-    candidateIds
-  } = await collectFollowupCandidateIds({
+  const retrieval = await collectFollowupCandidates({
     currentQuestionId,
     reviewItem,
     queryText,
     category,
+    excludeIds,
     limit: Math.max(limit, 8)
   });
 
-  const semanticDistanceByQuestionId = new Map();
-  for (const document of semanticDocs) {
-    if (document.sourceTable !== "question_items" || !document.sourceId) {
-      continue;
-    }
-    const currentDistance = semanticDistanceByQuestionId.get(document.sourceId);
-    if (currentDistance == null || (document.distance != null && document.distance < currentDistance)) {
-      semanticDistanceByQuestionId.set(document.sourceId, document.distance == null ? null : Number(document.distance));
-    }
-  }
-
-  const reviewBoostByQuestionId = new Map();
-  for (const questionId of reviewItem?.recommendedQuestionIds || []) {
-    reviewBoostByQuestionId.set(questionId, (reviewBoostByQuestionId.get(questionId) || 0) + 1);
-  }
-
-  const keywordBoostByQuestionId = new Map();
-  for (const question of keywordQuestions) {
-    keywordBoostByQuestionId.set(question.id, (keywordBoostByQuestionId.get(question.id) || 0) + 1);
-  }
-
-  const hydratedCandidates = await getQuestionBankItemsByIds(candidateIds);
-  const ranked = hydratedCandidates
-    .filter((question) => !excludeIds.includes(question.id))
-    .filter((question) => !category || question.category === category)
-    .map((question) => {
-      const baseScore = scoreQuestionCandidate(question, {
-        queryText,
-        excludeIds
-      });
-      const semanticDistance = semanticDistanceByQuestionId.get(question.id);
-      const semanticBoost = semanticDistance == null
-        ? 0
-        : Math.max(0, (1.15 - semanticDistance) * 18);
-      const reviewBoost = (reviewBoostByQuestionId.get(question.id) || 0) * 14;
-      const keywordBoost = (keywordBoostByQuestionId.get(question.id) || 0) * 4;
-
-      return {
-        question,
-        score: baseScore + semanticBoost + reviewBoost + keywordBoost
-      };
-    })
-    .filter((entry) => Number.isFinite(entry.score))
-    .sort((left, right) => (
-      right.score - left.score
-      || (left.question.usageStats?.askedCount || 0) - (right.question.usageStats?.askedCount || 0)
-      || String(left.question.id).localeCompare(String(right.question.id))
-    ));
-
-  return ranked[0]?.question || null;
+  return retrieval.items
+    .filter((entry) => !excludeIds.includes(entry.question.id))
+    .filter((entry) => !category || entry.question.category === category)[0]?.question || null;
 }
 
 export async function recommendQuestionsForReview({
@@ -466,51 +381,33 @@ export async function recommendQuestionsForReview({
   limit = 3
 } = {}) {
   await ensureQuestionBankSeeded();
-  let semanticDocs = [];
   try {
-    semanticDocs = await retrieveKnowledgeDocuments({
-      query: weaknessType || null,
-      documentType: "question",
-      limit: Math.max(limit * 3, 10)
+    const retrieval = await retrieveQuestionCandidates({
+      queryText: weaknessType,
+      category,
+      excludeIds,
+      limit
     });
+    return retrieval.items.map((entry) => entry.question).slice(0, limit);
   } catch (error) {
     questionBankLogger.warn("question_bank.review_retrieval_failed", error, {
       category,
       weaknessPreview: String(weaknessType || "").slice(0, 120) || null
     });
+    const fallback = await questionRepository.search({
+      category: category || null,
+      q: weaknessType || null,
+      limit: Math.max(limit * 3, 10),
+      orderBy: "updated_desc"
+    });
+    return fallback
+      .filter((question) => !(excludeIds || []).includes(question.id))
+      .slice(0, limit);
   }
-
-  const semanticQuestionIds = semanticDocs
-    .filter((item) => item.sourceTable === "question_items")
-    .map((item) => item.sourceId);
-  const semanticCandidates = await getQuestionBankItemsByIds(semanticQuestionIds);
-  const strictCandidates = await questionRepository.search({
-    category: category || null,
-    q: weaknessType || null,
-    limit: Math.max(limit * 3, 10),
-    orderBy: "updated_desc"
-  });
-  const fallbackCandidates = strictCandidates.length || semanticCandidates.length
-    ? []
-    : await questionRepository.search({
-        category: category || null,
-        limit: Math.max(limit * 3, 10),
-        orderBy: "updated_desc"
-      });
-  const candidates = uniqueIds([
-    ...semanticCandidates.map((item) => item.id),
-    ...strictCandidates.map((item) => item.id),
-    ...fallbackCandidates.map((item) => item.id)
-  ]);
-  const excluded = new Set((excludeIds || []).filter(Boolean));
-  return (await getQuestionBankItemsByIds(candidates))
-    .filter((question) => !excluded.has(question.id))
-    .filter((question) => !category || question.category === category)
-    .slice(0, limit);
 }
 
 export async function getQuestionBankSnapshot(filter = {}) {
-  const { category = null, limit = 50 } = filter;
+  const { category = null } = filter;
   const [categories, tags, items] = await Promise.all([
     listQuestionBankCategories(),
     listQuestionBankTags(category ? { category } : {}),
