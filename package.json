@@ -9,6 +9,8 @@
     "dev:no-open": "node app/server/scripts/dev.js --no-open",
     "dev:server": "node --watch app/server/server.js",
     "dev:win": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "desktop:doctor": "node app/server/scripts/desktop-doctor.js",
+    "desktop:dev": "node app/server/scripts/desktop-dev.js",
     "check": "node app/server/scripts/check.js",
     "db:up": "node app/server/scripts/db-up.js",
     "db:doctor": "node app/server/scripts/db-doctor.js",
@@ -19,6 +21,9 @@
     "smoke:session": "node app/server/scripts/smoke-session.js",
     "test:kimi-search": "node app/server/scripts/test-kimi-search.js",
     "smoke:session-search": "node app/server/scripts/smoke-session-search.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
   },
   "dependencies": {
     "pg": "^8.20.0",
