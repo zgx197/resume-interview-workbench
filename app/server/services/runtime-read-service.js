@@ -209,8 +209,13 @@ function buildSessionReadModelSummary(sessionRecord, base) {
   const activeTopicThreadCount = Number(sessionRecord?.activeTopicThreadCount || 0);
   const pendingThreadSummaryCount = Number(sessionRecord?.pendingThreadSummaryCount || 0);
   const pendingBackgroundJobCount = Number(sessionRecord?.pendingBackgroundJobCount || 0);
+  const leasedBackgroundJobCount = Number(sessionRecord?.leasedBackgroundJobCount || 0);
   const runningBackgroundJobCount = Number(sessionRecord?.runningBackgroundJobCount || 0);
+  const completedBackgroundJobCount = Number(sessionRecord?.completedBackgroundJobCount || 0);
+  const skippedBackgroundJobCount = Number(sessionRecord?.skippedBackgroundJobCount || 0);
   const failedBackgroundJobCount = Number(sessionRecord?.failedBackgroundJobCount || 0);
+  const exhaustedBackgroundJobCount = Number(sessionRecord?.exhaustedBackgroundJobCount || 0);
+  const expiredLeaseBackgroundJobCount = Number(sessionRecord?.expiredLeaseBackgroundJobCount || 0);
 
   return {
     planStageCount,
@@ -232,8 +237,13 @@ function buildSessionReadModelSummary(sessionRecord, base) {
     } : null,
     backgroundJobs: {
       pendingCount: pendingBackgroundJobCount,
+      leasedCount: leasedBackgroundJobCount,
       runningCount: runningBackgroundJobCount,
-      failedCount: failedBackgroundJobCount
+      completedCount: completedBackgroundJobCount,
+      skippedCount: skippedBackgroundJobCount,
+      failedCount: failedBackgroundJobCount,
+      exhaustedCount: exhaustedBackgroundJobCount,
+      expiredLeaseCount: expiredLeaseBackgroundJobCount
     },
     reportReady: Boolean(sessionRecord?.reportReady)
   };

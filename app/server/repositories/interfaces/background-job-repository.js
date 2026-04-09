@@ -46,4 +46,8 @@ export class BackgroundJobRepository {
   async deleteOrphanedSessionJobs(_filter = {}) {
     throw new Error("BackgroundJobRepository.deleteOrphanedSessionJobs is not implemented.");
   }
+
+  async getSummary(_filter = {}) {
+    throw new Error("BackgroundJobRepository.getSummary is not implemented.");
+  }
 }

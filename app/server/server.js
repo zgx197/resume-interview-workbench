@@ -5,7 +5,7 @@ import { readRequestJson, sendError, sendJson, sendStaticFile } from "./lib/http
 import { createLogger } from "./lib/logger.js";
 import { answerInterviewQuestion, createInterviewSession, getBootstrapData, getInterviewSession, listInterviewSessions, resumePendingSessions, startBackgroundJobWorker } from "./services/interview-service.js";
 import { getObservabilityOverview, getSessionObservabilitySummary } from "./services/log-observability.js";
-import { listBackgroundJobSnapshots } from "./services/background-job-service.js";
+import { getBackgroundJobSummary, listBackgroundJobSnapshots } from "./services/background-job-service.js";
 import { getKnowledgeDocumentEmbeddingStatus, listKnowledgeDocuments, searchSimilarKnowledge, syncKnowledgeEmbeddings } from "./services/knowledge-service.js";
 import { getQuestionBankItem, getQuestionBankSnapshot, listQuestionBankCategories, listQuestionBankTags, saveQuestionBankItem } from "./services/question-bank-service.js";
 import { getReviewSet, listReviewAttempts, listReviewItems, listReviewSets, recommendReviewSet, recordReviewAttempt, saveReviewSet, updateReviewItemStatus } from "./services/review-service.js";
@@ -201,6 +201,15 @@ async function handleApi(req, res, url) {
       kind: url.searchParams.get("kind") || null,
       status: url.searchParams.get("status") || null,
       limit: readPositiveInt(url.searchParams, "limit", 50)
+    }));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/background-jobs/summary") {
+    sendJson(res, 200, await getBackgroundJobSummary({
+      sessionId: url.searchParams.get("sessionId") || null,
+      kind: url.searchParams.get("kind") || null,
+      status: url.searchParams.get("status") || null
     }));
     return true;
   }

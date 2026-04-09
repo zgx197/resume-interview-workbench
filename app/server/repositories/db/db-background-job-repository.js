@@ -431,6 +431,109 @@ returning id;
     );
     return result.rowCount || 0;
   }
+
+  async getSummary(filter = {}) {
+    const result = await query(
+      `
+with scoped_jobs as (
+  select *
+  from background_jobs
+  where ($1::text is null or session_id = $1)
+    and ($2::text is null or kind = $2)
+    and ($3::text is null or status = $3)
+),
+status_counts as (
+  select
+    count(*)::int as total_count,
+    count(*) filter (where status = 'pending')::int as pending_count,
+    count(*) filter (where status = 'leased')::int as leased_count,
+    count(*) filter (where status = 'running')::int as running_count,
+    count(*) filter (where status = 'completed')::int as completed_count,
+    count(*) filter (where status = 'failed')::int as failed_count,
+    count(*) filter (
+      where status = 'completed'
+        and coalesce(result_json ->> 'skipped', 'false') = 'true'
+    )::int as skipped_count,
+    count(*) filter (
+      where status = 'failed'
+        and attempts >= max_attempts
+    )::int as exhausted_count,
+    count(*) filter (
+      where status in ('leased', 'running')
+        and lease_expires_at is not null
+        and lease_expires_at <= now()
+    )::int as expired_lease_count,
+    count(*) filter (
+      where status = 'pending'
+        and attempts < max_attempts
+        and scheduled_at <= now()
+    )::int as ready_to_run_count
+  from scoped_jobs
+),
+kind_counts as (
+  select
+    kind,
+    count(*)::int as total_count,
+    count(*) filter (where status = 'pending')::int as pending_count,
+    count(*) filter (where status in ('leased', 'running'))::int as active_count,
+    count(*) filter (where status = 'completed')::int as completed_count,
+    count(*) filter (where status = 'failed')::int as failed_count,
+    count(*) filter (
+      where status = 'completed'
+        and coalesce(result_json ->> 'skipped', 'false') = 'true'
+    )::int as skipped_count,
+    count(*) filter (
+      where status = 'failed'
+        and attempts >= max_attempts
+    )::int as exhausted_count
+  from scoped_jobs
+  group by kind
+)
+select
+  status_counts.*,
+  coalesce(
+    (
+      select jsonb_agg(
+        jsonb_build_object(
+          'kind', kind,
+          'totalCount', total_count,
+          'pendingCount', pending_count,
+          'activeCount', active_count,
+          'completedCount', completed_count,
+          'failedCount', failed_count,
+          'skippedCount', skipped_count,
+          'exhaustedCount', exhausted_count
+        )
+        order by kind
+      )
+      from kind_counts
+    ),
+    '[]'::jsonb
+  ) as kinds_json
+from status_counts;
+`,
+      [
+        filter.sessionId || null,
+        filter.kind || null,
+        filter.status || null
+      ]
+    );
+
+    const row = result.rows[0] || {};
+    return {
+      totalCount: Number(row.total_count || 0),
+      pendingCount: Number(row.pending_count || 0),
+      leasedCount: Number(row.leased_count || 0),
+      runningCount: Number(row.running_count || 0),
+      completedCount: Number(row.completed_count || 0),
+      failedCount: Number(row.failed_count || 0),
+      skippedCount: Number(row.skipped_count || 0),
+      exhaustedCount: Number(row.exhausted_count || 0),
+      expiredLeaseCount: Number(row.expired_lease_count || 0),
+      readyToRunCount: Number(row.ready_to_run_count || 0),
+      kinds: Array.isArray(row.kinds_json) ? row.kinds_json : []
+    };
+  }
 }
 
 export function createDbBackgroundJobRepository() {

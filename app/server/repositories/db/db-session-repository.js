@@ -63,8 +63,13 @@ function mapSessionRow(row) {
     currentThreadLabel: row.current_thread_label || null,
     currentThreadStatus: row.current_thread_status || null,
     pendingBackgroundJobCount: row.pending_background_job_count == null ? 0 : Number(row.pending_background_job_count),
+    leasedBackgroundJobCount: row.leased_background_job_count == null ? 0 : Number(row.leased_background_job_count),
     runningBackgroundJobCount: row.running_background_job_count == null ? 0 : Number(row.running_background_job_count),
+    completedBackgroundJobCount: row.completed_background_job_count == null ? 0 : Number(row.completed_background_job_count),
+    skippedBackgroundJobCount: row.skipped_background_job_count == null ? 0 : Number(row.skipped_background_job_count),
     failedBackgroundJobCount: row.failed_background_job_count == null ? 0 : Number(row.failed_background_job_count),
+    exhaustedBackgroundJobCount: row.exhausted_background_job_count == null ? 0 : Number(row.exhausted_background_job_count),
+    expiredLeaseBackgroundJobCount: row.expired_lease_background_job_count == null ? 0 : Number(row.expired_lease_background_job_count),
     reportReady: Boolean(row.report_ready),
     resumableTurnIndex: row.resumable_turn_index == null ? null : Number(row.resumable_turn_index),
     version: row.version,
@@ -265,8 +270,13 @@ select
   current_thread.label as current_thread_label,
   current_thread.status as current_thread_status,
   coalesce(job_summary.pending_background_job_count, 0) as pending_background_job_count,
+  coalesce(job_summary.leased_background_job_count, 0) as leased_background_job_count,
   coalesce(job_summary.running_background_job_count, 0) as running_background_job_count,
+  coalesce(job_summary.completed_background_job_count, 0) as completed_background_job_count,
+  coalesce(job_summary.skipped_background_job_count, 0) as skipped_background_job_count,
   coalesce(job_summary.failed_background_job_count, 0) as failed_background_job_count,
+  coalesce(job_summary.exhausted_background_job_count, 0) as exhausted_background_job_count,
+  coalesce(job_summary.expired_lease_background_job_count, 0) as expired_lease_background_job_count,
   coalesce(report_summary.report_ready, false) as report_ready,
   nullif(s.current_run_payload_json ->> 'turnIndex', '')::integer as resumable_turn_index
 from interview_sessions s
@@ -313,8 +323,20 @@ left join lateral (
 left join lateral (
   select
     count(*) filter (where status in ('pending', 'running', 'leased'))::int as pending_background_job_count,
+    count(*) filter (where status = 'leased')::int as leased_background_job_count,
     count(*) filter (where status = 'running')::int as running_background_job_count,
-    count(*) filter (where status = 'failed')::int as failed_background_job_count
+    count(*) filter (where status = 'completed')::int as completed_background_job_count,
+    count(*) filter (
+      where status = 'completed'
+        and coalesce(result_json ->> 'skipped', 'false') = 'true'
+    )::int as skipped_background_job_count,
+    count(*) filter (where status = 'failed')::int as failed_background_job_count,
+    count(*) filter (where status = 'failed' and attempts >= max_attempts)::int as exhausted_background_job_count,
+    count(*) filter (
+      where status in ('leased', 'running')
+        and lease_expires_at is not null
+        and lease_expires_at <= now()
+    )::int as expired_lease_background_job_count
   from background_jobs
   where session_id = s.id
 ) job_summary on true
@@ -353,8 +375,13 @@ select
   current_thread.label as current_thread_label,
   current_thread.status as current_thread_status,
   coalesce(job_summary.pending_background_job_count, 0) as pending_background_job_count,
+  coalesce(job_summary.leased_background_job_count, 0) as leased_background_job_count,
   coalesce(job_summary.running_background_job_count, 0) as running_background_job_count,
+  coalesce(job_summary.completed_background_job_count, 0) as completed_background_job_count,
+  coalesce(job_summary.skipped_background_job_count, 0) as skipped_background_job_count,
   coalesce(job_summary.failed_background_job_count, 0) as failed_background_job_count,
+  coalesce(job_summary.exhausted_background_job_count, 0) as exhausted_background_job_count,
+  coalesce(job_summary.expired_lease_background_job_count, 0) as expired_lease_background_job_count,
   coalesce(report_summary.report_ready, false) as report_ready,
   nullif(s.current_run_payload_json ->> 'turnIndex', '')::integer as resumable_turn_index
 from interview_sessions s
@@ -401,8 +428,20 @@ left join lateral (
 left join lateral (
   select
     count(*) filter (where status in ('pending', 'running', 'leased'))::int as pending_background_job_count,
+    count(*) filter (where status = 'leased')::int as leased_background_job_count,
     count(*) filter (where status = 'running')::int as running_background_job_count,
-    count(*) filter (where status = 'failed')::int as failed_background_job_count
+    count(*) filter (where status = 'completed')::int as completed_background_job_count,
+    count(*) filter (
+      where status = 'completed'
+        and coalesce(result_json ->> 'skipped', 'false') = 'true'
+    )::int as skipped_background_job_count,
+    count(*) filter (where status = 'failed')::int as failed_background_job_count,
+    count(*) filter (where status = 'failed' and attempts >= max_attempts)::int as exhausted_background_job_count,
+    count(*) filter (
+      where status in ('leased', 'running')
+        and lease_expires_at is not null
+        and lease_expires_at <= now()
+    )::int as expired_lease_background_job_count
   from background_jobs
   where session_id = s.id
 ) job_summary on true

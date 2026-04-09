@@ -108,6 +108,10 @@ export async function deleteOrphanedSessionBackgroundJobs(filter = {}) {
   return backgroundJobRepository.deleteOrphanedSessionJobs(filter);
 }
 
+export async function getBackgroundJobSummary(filter = {}) {
+  return backgroundJobRepository.getSummary(filter);
+}
+
 export function upsertBackgroundJobSnapshotInBackground(input) {
   void upsertBackgroundJobSnapshot(input).catch((error) => {
     jobLogger.warn("background_job.db_sync_failed", error, {
