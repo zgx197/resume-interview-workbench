@@ -1056,3 +1056,89 @@ app/server/
   用于补齐 lease / retry / timeout / recovery 的 worker 闭环。
 - `feat(review): ...`
   用于把 review 从“弱项条目沉淀”推进到“完整复习域”。
+
+---
+
+## 20. 最新实现状态（已完成收尾版，覆盖上方旧评估）
+
+本节用于覆盖上方所有旧的阶段性评估。自本节起，`database-architecture-plan.md` 与当前代码主线状态重新对齐，后续实现跟踪应以本节为准。
+
+### 20.1 总体结论
+
+- Phase 0：已完成
+- Phase 1：已完成
+- Phase 2：已完成
+- Phase 3：已完成
+- Phase 4：已完成
+
+当前系统已经完成从 file-backed 主存储向 PostgreSQL 主存储的收口，数据库已经成为默认运行真相源；文件层和 JSONL 层仅保留日志、调试、排障、导出与必要回填职责，不再承担主业务读写职责。
+
+### 20.2 当前与计划文档的对齐结果
+
+#### 数据库与运行模式
+
+- `PostgreSQL + pgvector + Docker Compose` 已落地，迁移体系、环境变量模板、本地启动脚本和检查脚本均已可用。
+- 默认运行模式已经切换为 `database_only`，本地 `setup:local` 与 `check` 链路围绕数据库模式工作。
+- 文件层已降级为 debug / export / backfill 辅助层，不再是主运行路径。
+
+#### 资产域与仓储边界
+
+- `TemplateRepository`、`QuestionRepository`、`ReviewRepository`、`BackgroundJobRepository`、`KnowledgeRepository`、`SessionRepository` 等边界已经形成。
+- 模板、题库、review、knowledge、background job 均已进入数据库主路径。
+- 题库资产系统已经具备 `question_items`、`question_variants`、`question_sources`、`question_tags`、`question_usage_stats` 等核心对象，主出题链路与 follow-up 链路已逐步收口到题库与知识库。
+
+#### 运行态与结构化读模型
+
+- `interview_sessions`、`interview_turns`、`turn_assessments`、`session_reports` 等运行态表已成为真实持久化路径。
+- session 列表、摘要、恢复入口、任务汇总等读路径已由结构化 read model 主导，`snapshot_json` 已退居兼容补位与少量 hydration 职责。
+- `plan`、`topicGraph`、`topicThreads`、`currentRun` 中稳定子结构已进一步拆分到更明确的列或子表，运行态读模型已具备最终形态。
+
+#### Background Job 基础设施
+
+- `background_jobs` 已具备稳定的 lease、retry、timeout recovery、recovered / skipped / exhausted 状态流转与观测汇总能力。
+- 任务恢复入口、worker 闭环、失败恢复语义、汇总接口与 observability 视图均已补齐。
+- 后台任务基础设施已经从“任务快照”演进为可稳定承载 report / summary / embedding 等异步任务的通用底座。
+
+#### Review 完整复习域
+
+- review 已不再只是弱项条目沉淀，当前已形成 `review_items`、`review_item_attempts`、`review_sets`、`review_set_items`、recommendation summary 等完整复习域骨架。
+- review 服务已经支持 attempt、set、recommendation、priority score、状态推进与题目推荐整合。
+- “差回答沉淀 -> 复习任务 -> 复习尝试 -> 推荐补强题” 已形成闭环。
+
+#### Knowledge Retrieval 与 Embedding
+
+- `knowledge_documents`、`knowledge_embeddings` 已完成真实写入、失效检测、重建与相似检索。
+- embedding provider 已接入真实配置路径，语义检索失败时具备稳定降级能力。
+- 检索策略已从零散 service 规则收口为统一的“结构化过滤 + 向量召回 + 重排”框架，并已进入主出题、follow-up 与 review recommendation 链路。
+
+### 20.3 计划项最终状态对照
+
+| 计划项 | 最终状态 | 说明 |
+| --- | --- | --- |
+| Phase 0：数据库基础设施 | 已完成 | Docker Compose、环境变量、迁移 runner、`pgvector` 扩展均已稳定落地。 |
+| Phase 1：Repository 边界与 DB 骨架 | 已完成 | 仓储接口与 DB 实现已形成稳定边界，代码主线已按仓储层组织。 |
+| Phase 2：资产域闭环 | 已完成 | 模板、题库、review、knowledge、embedding、background jobs 均已接入数据库主路径。 |
+| Phase 3：运行态主链路数据库化 | 已完成 | session / turn / assessment / report 已完成数据库主写、回填与恢复。 |
+| Phase 4：数据库成为唯一真相源 | 已完成 | 结构化 read model 已主导读路径，文件层已降级，数据库已成为默认业务真相源。 |
+| Background Job 基础设施 | 已完成 | lease / retry / timeout / recovery / observability 已形成稳定闭环。 |
+| Review 完整复习域 | 已完成 | attempts / sets / recommendations / priority / recommendation summary 已形成可用闭环。 |
+| Knowledge Retrieval 架构层 | 已完成 | 已形成统一检索策略层，并支撑出题、追问与复习推荐。 |
+| JSONL / 文件调试层 | 已完成收口 | 仅保留日志、调试、排障、导出与必要回填职责。 |
+
+### 20.4 里程碑提交
+
+以下提交可作为本轮数据库化与 Phase 4 收尾的关键里程碑：
+
+| Commit | 说明 |
+| --- | --- |
+| `e3dc528` | `feat(db): 初始化 PostgreSQL 运行时与迁移体系` |
+| `607ceb9` | `feat(db): 添加仓储边界与资产域服务` |
+| `d2faadd` | `feat(runtime): 持久化结构化会话读模型` |
+| `a480bc8` | `feat(runtime): 补强结构化读路径与任务汇总视图` |
+| `5e9884d` | `feat(review): 收口复习域与统一检索策略` |
+
+### 20.5 后续使用约定
+
+- 本文档后续不再用“Phase 4 未完成”视角描述数据库主线状态。
+- 若后续继续演进，应以“完成态上的增强项”记录，例如性能优化、检索质量提升、观测细化、运维自动化，而不是回退为“是否完成数据库化”的讨论。
+- 若文档前部旧表述与本节冲突，以本节为准。
