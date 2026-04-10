@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
+import { Client } from "pg";
 import { config } from "../config.js";
-import { query } from "../db/client.js";
 
 export const DOCKER_COMMAND = process.platform === "win32" ? "docker.exe" : "docker";
 
@@ -16,11 +16,16 @@ export function scriptError(scope, message) {
   console.error(`[${scope}] ${message}`);
 }
 
-export function runCommand(command, args, { cwd = config.repoRoot } = {}) {
+export function runCommand(command, args, {
+  cwd = config.repoRoot,
+  env = process.env,
+  input = null
+} = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
-      stdio: ["ignore", "pipe", "pipe"]
+      env,
+      stdio: [input == null ? "ignore" : "pipe", "pipe", "pipe"]
     });
 
     let stdout = "";
@@ -49,6 +54,11 @@ export function runCommand(command, args, { cwd = config.repoRoot } = {}) {
       error.stderr = stderr;
       reject(error);
     });
+
+    if (input != null && child.stdin) {
+      child.stdin.write(input);
+      child.stdin.end();
+    }
   });
 }
 
@@ -78,6 +88,7 @@ export async function dockerComposeUp({
 }
 
 export async function waitForDatabaseReady({
+  databaseUrl = config.databaseUrl,
   timeoutMs = 90000,
   intervalMs = 1500,
   scope = "db:up"
@@ -87,8 +98,8 @@ export async function waitForDatabaseReady({
 
   while (Date.now() - startedAt < timeoutMs) {
     try {
-      await query("select 1 as ok;");
-      scriptLog(scope, `database ready at ${config.databaseUrl}`);
+      await runSql(databaseUrl, "select 1 as ok;");
+      scriptLog(scope, `database ready at ${databaseUrl}`);
       return true;
     } catch (error) {
       lastError = error;
@@ -99,25 +110,41 @@ export async function waitForDatabaseReady({
   throw new Error(
     [
       `Database did not become ready within ${timeoutMs}ms.`,
-      `Expected url: ${config.databaseUrl}`,
+      `Expected url: ${databaseUrl}`,
       `Last error: ${lastError?.code || lastError?.message || "unknown"}`
     ].join("\n")
   );
 }
 
-export async function getDatabaseStatus() {
+export async function getDatabaseStatus({
+  databaseUrl = config.databaseUrl
+} = {}) {
   try {
-    await query("select 1 as ok;");
+    await runSql(databaseUrl, "select 1 as ok;");
     return {
       ok: true,
-      databaseUrl: config.databaseUrl
+      databaseUrl
     };
   } catch (error) {
     return {
       ok: false,
-      databaseUrl: config.databaseUrl,
+      databaseUrl,
       errorCode: error?.code || null,
       errorMessage: error?.message || "unknown error"
     };
+  }
+}
+
+export async function runSql(databaseUrl, sql, params = []) {
+  const client = new Client({
+    connectionString: databaseUrl,
+    ssl: config.databaseSsl ? { rejectUnauthorized: false } : false
+  });
+
+  await client.connect();
+  try {
+    return await client.query(sql, params);
+  } finally {
+    await client.end();
   }
 }

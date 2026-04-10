@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import { closeDbPool, query } from "../db/client.js";
 import { config } from "../config.js";
 import { loadEnvFile } from "../env.js";
@@ -11,14 +10,7 @@ import {
   scriptLog,
   scriptWarn
 } from "./script-helpers.js";
-
-async function listMigrationFiles() {
-  const entries = await fs.readdir(config.dbMigrationsDir, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-    .map((entry) => entry.name)
-    .sort((left, right) => left.localeCompare(right));
-}
+import { listMigrationFiles } from "../db/migration-runner.js";
 
 async function listAppliedMigrations() {
   try {
@@ -37,22 +29,24 @@ async function main() {
 
   scriptLog("db:doctor", `databaseUrl=${config.databaseUrl}`);
   scriptLog("db:doctor", `dockerService=${config.databaseDockerService}`);
+  let dockerAvailable = false;
 
   try {
     await ensureDockerDaemon("db:doctor");
+    dockerAvailable = true;
     scriptLog("db:doctor", "docker daemon reachable");
+    try {
+      const { stdout } = await runCommand(DOCKER_COMMAND, ["compose", "ps"]);
+      scriptLog("db:doctor", "docker compose ps");
+      console.log(stdout.trim() || "(no containers)");
+    } catch (error) {
+      scriptWarn("db:doctor", `docker compose ps failed\n${error.message}`);
+    }
   } catch (error) {
-    scriptWarn("db:doctor", error.message || String(error));
-    process.exitCode = 1;
-    return;
-  }
-
-  try {
-    const { stdout } = await runCommand(DOCKER_COMMAND, ["compose", "ps"]);
-    scriptLog("db:doctor", "docker compose ps");
-    console.log(stdout.trim() || "(no containers)");
-  } catch (error) {
-    scriptWarn("db:doctor", `docker compose ps failed\n${error.message}`);
+    scriptLog("db:doctor", `docker unavailable, continuing with direct database checks`);
+    if (config.logLevel === "debug") {
+      scriptWarn("db:doctor", error.message || String(error));
+    }
   }
 
   const dbStatus = await getDatabaseStatus();
@@ -108,6 +102,9 @@ select
   );
 
   scriptLog("db:doctor", "database environment looks healthy");
+  if (!dockerAvailable) {
+    scriptLog("db:doctor", "docker is optional for the current reachable database setup");
+  }
 }
 
 main()

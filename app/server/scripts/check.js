@@ -26,13 +26,15 @@ function buildDatabaseUnavailableError(error) {
     `Database is not reachable at ${config.databaseUrl}.`,
     `Current runtime storage mode is ${config.interviewRuntimeStorageMode}, so npm run check requires PostgreSQL to be running.`,
     "Expected local setup:",
-    "1. Start Docker Desktop / Docker daemon",
-    "2. Run npm run db:up",
-    "3. Run npm run db:migrate",
-    "4. Re-run npm run check",
+    "1. Desktop mode: provide DESKTOP_POSTGRES_BIN_DIR or run the Tauri desktop bootstrap",
+    "2. Local dev mode: start Docker Desktop / Docker daemon",
+    "3. Run npm run db:up",
+    "4. Run npm run db:migrate",
+    "5. Re-run npm run check",
     "Optional helpers:",
     "- npm run db:doctor",
-    "- npm run setup:local"
+    "- npm run setup:local",
+    "- npm run desktop:doctor"
   ];
 
   if (error?.code) {
