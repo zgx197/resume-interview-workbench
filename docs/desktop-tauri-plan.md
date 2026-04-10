@@ -139,6 +139,8 @@ Windows 推荐目录如下：
 | --- | --- | --- |
 | 程序目录 | 用户解压后的 portable 目录 | 放桌面应用主程序、受控 sidecar 与静态资源 |
 | 用户数据目录 | `%LocalAppData%/ResumeInterviewWorkbench/` | 放数据库数据、日志、导出、缓存 |
+| 简历工作区 | `%LocalAppData%/ResumeInterviewWorkbench/workspace/resume-package/` | 放用户导入的 `resume.json`、`resume.meta.json`、`resume.schema.json` |
+| 模板来源 | 默认不随 portable 发布包分发 | 公司模板后续通过程序内创建、导入或云端下发管理 |
 | 数据库目录 | `%LocalAppData%/ResumeInterviewWorkbench/postgres/` | PostgreSQL data dir |
 | 日志目录 | `%LocalAppData%/ResumeInterviewWorkbench/logs/` | 桌面壳、服务端、数据库日志 |
 | 导出目录 | `%LocalAppData%/ResumeInterviewWorkbench/exports/` | 调试导出与备份 |
@@ -177,6 +179,16 @@ Windows 推荐目录如下：
 - `删除全部本地数据`
 
 其中“删除全部本地数据”必须是显式确认路径，不能做成默认行为。
+
+### 6.1.2 干净发布包与默认内容约定
+
+桌面主线当前已经落到“portable 优先 + 干净发布包”策略，后续默认按下面规则保持一致：
+
+- 发布包不携带开发者自己的 `resume-package/` 数据，用户简历通过工作台导入到本地工作区。
+- 发布包默认不分发 `interview-kit/templates/`，首包模板库应为空，由用户后续创建、保存或导入。
+- 发布包可以继续携带通用 `jobs`、`roles` 或桌面运行所需种子资源，但这些内容必须保持中性，不包含真实公司、产品或人员信息。
+- 模板为空时的 UI 占位文案、示例字段、空状态说明，也必须保持中性和泛化，不使用真实业务案例。
+- 这套约定既是发布策略，也是内容合规约束；后续若调整默认资源组成，需要同步更新 `README` 与本方案文档。
 
 ### 6.2 运行时端口
 
@@ -582,3 +594,45 @@ src-tauri/
 - 本地 PostgreSQL 分发策略
 - 桌面启动状态机
 - 升级与迁移策略
+
+---
+
+## MVP 3 当前实现进度补充
+
+截至当前代码状态，`MVP 3` 已新增以下实现：
+
+- 已新增 packaged desktop launcher，release 模式下先显示内置启动页
+- 已新增 Rust 侧打包态启动链路，负责拉起本地 Node 服务并在就绪后导航到 `http://127.0.0.1:3000`
+- 已新增 `APP_ROOT / ENV_FILE` 运行时注入能力，支持桌面打包资源目录承载 Node 服务
+- 已新增 `desktop:node:vendor`，可把当前机器的 `node.exe` vendor 到 `src-tauri/resources/node/windows-x64`
+- 已新增 `desktop:app-runtime:vendor`，可把 `app/`、`interview-kit/jobs`、`interview-kit/roles`、`desktop-seed/`、`node_modules/` vendor 到 `src-tauri/resources/app-runtime`
+- 已新增 `desktop:build:portable`，可输出 `.desktop-dist/ResumeInterviewWorkbench-portable-win-x64/`
+- 已新增 `desktop:build:release`，可输出带时间戳的干净 portable 目录与 zip 压缩包
+- 已新增工作台内的 `portable runtime` 面板，可查看桌面数据目录并清理 `cache / tmp / logs / exports / config`
+
+当前仍保留的后续收尾项：
+
+- 把 packaged 启动失败态进一步做成更明确的桌面错误页和重试引导
+- 补齐“删除全部本地数据”这类危险操作的完整关机/重启闭环
+- 在真实 portable 分发机上补一轮完整验收，包括首启、复启和资源升级替换
+## MVP 3 收尾版补充
+
+本轮继续收口后，`MVP 3` 进一步落下了这些工程化能力：
+
+- packaged launcher 已具备分步骤状态反馈，不再只是静态等待页
+- Tauri 打包态优先从 `exe` 同级 `resources/` 解析便携运行资源，更贴合 portable 分发目录结构
+- 桌面壳会把自身启动轨迹写到 `LocalAppData/ResumeInterviewWorkbench/logs/desktop-launcher.log`
+- 打包态 backend stdout / stderr 会落到 `desktop-backend.log` 与 `desktop-backend.error.log`
+- 工作台内“删除全部本地数据”已切到安全的 `reset marker -> 下次启动执行` 模式，避免运行中直接破坏 PostgreSQL 数据目录
+- `desktop:build:portable` 已能在默认输出目录被旧版占用时自动切到时间戳输出目录，降低 Windows 文件锁对迭代打包的影响
+- 发布包中的个人简历数据已切到“本地工作区导入”模式，不再直接跟随 portable 包分发
+- `desktop:build:release` 会校验打包资源中不存在 `resume-package/`，并产出可直接分发的 zip 包
+- 发布包中的公司模板目录也已从默认资源中剥离，桌面首包默认不内置任何公司模板
+- 桌面运行态默认关闭文件模板导入，模板资产以用户自行创建和保存的数据为准
+
+当前 `MVP 3` 可以视为已完成到“可持续打包、可观察、可清理”的收尾状态。
+如果后续继续推进，主线将转入：
+
+- 更明确的 packaged 启动失败错误页
+- 真机 portable 分发验收
+- MVP 4 的恢复、备份与更完整的故障处理
