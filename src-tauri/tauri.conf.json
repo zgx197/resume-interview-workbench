@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.zgx197.resume-interview-workbench",
   "build": {
-    "beforeDevCommand": "npm run dev:no-open",
+    "beforeDevCommand": "npm run desktop:dev:server",
     "devUrl": "http://127.0.0.1:3000",
     "frontendDist": "../app/web"
   },
@@ -27,6 +27,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "resources": [
+      "resources/postgres"
+    ]
   }
 }

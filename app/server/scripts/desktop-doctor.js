@@ -2,6 +2,13 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import fs from "node:fs";
+import { loadEnvFile } from "../env.js";
+import { getDatabaseStatus, scriptWarn } from "./script-helpers.js";
+import {
+  detectManagedPostgresRuntime,
+  getDesktopRuntimePaths
+} from "./desktop-runtime.js";
 
 const userCargoBin = path.join(process.env.USERPROFILE || "", ".cargo", "bin");
 const envPath = process.env.PATH || process.env.Path || "";
@@ -64,29 +71,67 @@ function checkNodeModule(modulePath) {
 }
 
 function main() {
-  const cargoReady = checkBinary("cargo");
-  const rustcReady = checkBinary("rustc");
-  const tauriCliReady = checkNodeModule("node_modules/@tauri-apps/cli");
-  const tauriConfigReady = checkNodeModule("src-tauri/tauri.conf.json");
+  return loadEnvFile().then(async () => {
+    const runtimePaths = getDesktopRuntimePaths();
+    const managedRuntime = detectManagedPostgresRuntime();
+    const configuredDbUrl = process.env.DATABASE_URL || "";
+    const dbStatus = configuredDbUrl
+      ? await getDatabaseStatus({ databaseUrl: configuredDbUrl })
+      : { ok: false };
 
-  if (cargoReady && rustcReady && tauriCliReady && tauriConfigReady) {
-    printLine("desktop MVP 0 prerequisites look ready.");
-    return;
-  }
+    const cargoReady = checkBinary("cargo");
+    const rustcReady = checkBinary("rustc");
+    const tauriCliReady = checkNodeModule("node_modules/@tauri-apps/cli");
+    const tauriConfigReady = checkNodeModule("src-tauri/tauri.conf.json");
 
-  printLine("desktop MVP 0 prerequisites are incomplete.");
-  printLine("Next steps:");
-  if (!cargoReady || !rustcReady) {
-    printLine("- Install Rust toolchain (cargo + rustc)");
-  }
-  if (!tauriCliReady) {
-    printLine("- Run npm install to install @tauri-apps/cli");
-  }
-  if (!tauriConfigReady) {
-    printLine("- Ensure src-tauri/tauri.conf.json exists");
-  }
-  printLine("- Run npm run desktop:dev");
-  process.exitCode = 1;
+    printLine(`desktopDataDir: ${runtimePaths.baseDir}`);
+    printLine(`managedPostgres: ${managedRuntime.available ? `ready (${managedRuntime.binDir})` : "missing"}`);
+    const bundledManifestPath = path.resolve(
+      process.cwd(),
+      "src-tauri",
+      "resources",
+      "postgres",
+      "windows-x64",
+      "manifest.json"
+    );
+    printLine(`bundledPostgresRuntime: ${fs.existsSync(bundledManifestPath) ? bundledManifestPath : "not staged"}`);
+    if (!managedRuntime.available) {
+      scriptWarn(
+        "desktop:doctor",
+        "managed PostgreSQL binaries not found; desktop dev will reuse an existing DATABASE_URL or fall back to Docker."
+      );
+    }
+
+    if (configuredDbUrl) {
+      printLine(`databaseUrl: ${configuredDbUrl}`);
+      printLine(`databaseReachable: ${dbStatus.ok ? "yes" : "no"}`);
+    }
+
+    if (cargoReady && rustcReady && tauriCliReady && tauriConfigReady) {
+      printLine("desktop MVP 2 prerequisites look ready.");
+      return;
+    }
+
+    printLine("desktop MVP 2 prerequisites are incomplete.");
+    printLine("Next steps:");
+    if (!cargoReady || !rustcReady) {
+      printLine("- Install Rust toolchain (cargo + rustc)");
+    }
+    if (!tauriCliReady) {
+      printLine("- Run npm install to install @tauri-apps/cli");
+    }
+    if (!tauriConfigReady) {
+      printLine("- Ensure src-tauri/tauri.conf.json exists");
+    }
+    if (!managedRuntime.available) {
+      printLine("- Add a PostgreSQL runtime via DESKTOP_POSTGRES_BIN_DIR, or keep a reachable DATABASE_URL / Docker fallback for development");
+    }
+    printLine("- Run npm run desktop:dev");
+    process.exitCode = 1;
+  });
 }
 
-main();
+main().catch((error) => {
+  printLine(error.message || String(error));
+  process.exitCode = 1;
+});

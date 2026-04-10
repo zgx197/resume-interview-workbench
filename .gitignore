@@ -12,6 +12,12 @@ coverage/
 .vite/
 src-tauri/target/
 
+# Desktop runtime staging
+.desktop-cache/
+src-tauri/resources/postgres/windows-x64/**
+!src-tauri/resources/postgres/
+!src-tauri/resources/postgres/README.md
+
 # Env / local config
 .env
 .env.*
