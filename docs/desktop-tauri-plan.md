@@ -274,6 +274,19 @@ Windows 推荐目录如下：
 
 去掉用户对 Docker 的依赖，让桌面应用自动托管本地 PostgreSQL。
 
+#### 当前实现进度
+
+- 已完成开发态桌面 bootstrap，对 `LocalAppData/ResumeInterviewWorkbench` 运行目录进行统一规划
+- 已完成桌面模式环境注入，服务端日志与 session 导出默认切到桌面运行目录
+- 已完成 PostgreSQL 托管 runtime 发现逻辑，支持通过 `DESKTOP_POSTGRES_BIN_DIR` 接入本地 PostgreSQL 二进制
+- 已完成 runtime staging 目录约定，当前桌面分发资源目录为 `src-tauri/resources/postgres/windows-x64`
+- 已完成 `desktop:postgres:vendor` 导入脚本，可把现有 PostgreSQL 安装目录复制进桌面资源目录
+- 已完成 `desktop:postgres:prepare` 自动准备脚本，可从官方 installer 提取 runtime、编译 pgvector 并 vendor 到桌面资源目录
+- 已完成数据库迁移链路去 Docker exec 化，`db:migrate` 现在直接基于 `DATABASE_URL` 执行
+- 已完成开发态回退策略：优先复用现有 `DATABASE_URL`，其次尝试托管 PostgreSQL，最后可回退 Docker
+- 已在当前开发机验证 bundled PostgreSQL runtime 可监听 `55432`，并能承载现有 migration + pgvector 链路
+- 尚未完成 packaged 桌面版中对资源目录的最终定位与分发细节，这部分会在 MVP 3 继续收口
+
 #### 实现范围
 
 - 引入受控 PostgreSQL 运行时分发方式
