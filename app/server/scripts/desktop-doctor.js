@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { loadEnvFile } from "../env.js";
@@ -10,8 +11,33 @@ import {
   getDesktopRuntimePaths
 } from "./desktop-runtime.js";
 
-const userCargoBin = path.join(process.env.USERPROFILE || "", ".cargo", "bin");
 const envPath = process.env.PATH || process.env.Path || "";
+
+function resolveCargoBinDir() {
+  const candidates = [
+    process.env.CARGO_HOME ? path.join(process.env.CARGO_HOME, "bin") : "",
+    process.env.USERPROFILE ? path.join(process.env.USERPROFILE, ".cargo", "bin") : "",
+    process.env.HOME ? path.join(process.env.HOME, ".cargo", "bin") : "",
+    path.join(os.homedir(), ".cargo", "bin")
+  ].filter(Boolean);
+
+  if (process.platform === "win32") {
+    const usersRoot = path.join(path.parse(os.homedir()).root, "Users");
+    if (existsSync(usersRoot)) {
+      for (const entry of fs.readdirSync(usersRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+
+        candidates.push(path.join(usersRoot, entry.name, ".cargo", "bin"));
+      }
+    }
+  }
+
+  return candidates.find((candidate) => existsSync(candidate)) || "";
+}
+
+const userCargoBin = resolveCargoBinDir();
 
 function resolveBinary(name) {
   const exeName = process.platform === "win32" ? `${name}.exe` : name;
@@ -32,11 +58,7 @@ function withRustEnv() {
 
 function runCommand(command, args) {
   const resolvedCommand = resolveBinary(command);
-  const [exec, execArgs] = process.platform === "win32"
-    ? ["cmd.exe", ["/c", resolvedCommand, ...args]]
-    : [resolvedCommand, args];
-
-  const result = spawnSync(exec, execArgs, {
+  const result = spawnSync(resolvedCommand, args, {
     encoding: "utf8",
     env: withRustEnv()
   });
@@ -83,6 +105,23 @@ function main() {
     const rustcReady = checkBinary("rustc");
     const tauriCliReady = checkNodeModule("node_modules/@tauri-apps/cli");
     const tauriConfigReady = checkNodeModule("src-tauri/tauri.conf.json");
+    const bundledNodeRuntimePath = path.resolve(
+      process.cwd(),
+      "src-tauri",
+      "resources",
+      "node",
+      "windows-x64",
+      process.platform === "win32" ? "node.exe" : "node"
+    );
+    const bundledAppRuntimePath = path.resolve(
+      process.cwd(),
+      "src-tauri",
+      "resources",
+      "app-runtime",
+      "app",
+      "server",
+      "server.js"
+    );
 
     printLine(`desktopDataDir: ${runtimePaths.baseDir}`);
     printLine(`managedPostgres: ${managedRuntime.available ? `ready (${managedRuntime.binDir})` : "missing"}`);
@@ -95,6 +134,8 @@ function main() {
       "manifest.json"
     );
     printLine(`bundledPostgresRuntime: ${fs.existsSync(bundledManifestPath) ? bundledManifestPath : "not staged"}`);
+    printLine(`bundledNodeRuntime: ${fs.existsSync(bundledNodeRuntimePath) ? bundledNodeRuntimePath : "not staged"}`);
+    printLine(`bundledAppRuntime: ${fs.existsSync(bundledAppRuntimePath) ? bundledAppRuntimePath : "not staged"}`);
     if (!managedRuntime.available) {
       scriptWarn(
         "desktop:doctor",
@@ -108,11 +149,11 @@ function main() {
     }
 
     if (cargoReady && rustcReady && tauriCliReady && tauriConfigReady) {
-      printLine("desktop MVP 2 prerequisites look ready.");
+      printLine("desktop MVP 3 prerequisites look ready.");
       return;
     }
 
-    printLine("desktop MVP 2 prerequisites are incomplete.");
+    printLine("desktop MVP 3 prerequisites are incomplete.");
     printLine("Next steps:");
     if (!cargoReady || !rustcReady) {
       printLine("- Install Rust toolchain (cargo + rustc)");
@@ -125,6 +166,12 @@ function main() {
     }
     if (!managedRuntime.available) {
       printLine("- Add a PostgreSQL runtime via DESKTOP_POSTGRES_BIN_DIR, or keep a reachable DATABASE_URL / Docker fallback for development");
+    }
+    if (!fs.existsSync(bundledNodeRuntimePath)) {
+      printLine("- Run npm run desktop:node:vendor to stage node.exe for packaged portable builds");
+    }
+    if (!fs.existsSync(bundledAppRuntimePath)) {
+      printLine("- Run npm run desktop:app-runtime:vendor to stage the packaged Node app runtime");
     }
     printLine("- Run npm run desktop:dev");
     process.exitCode = 1;

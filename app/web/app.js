@@ -1,5 +1,10 @@
 import { fetchBootstrap } from "./modules/api.js";
-import { bindUiEvents, refreshObservability, startObservabilityPolling } from "./modules/actions.js";
+import {
+  bindUiEvents,
+  refreshDesktopRuntime,
+  refreshObservability,
+  startObservabilityPolling
+} from "./modules/actions.js";
 import { renderBootstrap, renderSession } from "./modules/renderers.js";
 import { state } from "./modules/state.js";
 import { elements } from "./modules/dom.js";
@@ -13,6 +18,7 @@ fetchBootstrap()
     state.bootstrap = bootstrap;
     renderBootstrap();
     renderSession();
+    refreshDesktopRuntime();
     refreshObservability();
     startObservabilityPolling();
   })

@@ -1,9 +1,36 @@
 import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-const userCargoBin = path.join(process.env.USERPROFILE || "", ".cargo", "bin");
 const envPath = process.env.PATH || process.env.Path || "";
+
+function resolveCargoBinDir() {
+  const candidates = [
+    process.env.CARGO_HOME ? path.join(process.env.CARGO_HOME, "bin") : "",
+    process.env.USERPROFILE ? path.join(process.env.USERPROFILE, ".cargo", "bin") : "",
+    process.env.HOME ? path.join(process.env.HOME, ".cargo", "bin") : "",
+    path.join(os.homedir(), ".cargo", "bin")
+  ].filter(Boolean);
+
+  if (process.platform === "win32") {
+    const usersRoot = path.join(path.parse(os.homedir()).root, "Users");
+    if (fs.existsSync(usersRoot)) {
+      for (const entry of fs.readdirSync(usersRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+
+        candidates.push(path.join(usersRoot, entry.name, ".cargo", "bin"));
+      }
+    }
+  }
+
+  return candidates.find((candidate) => fs.existsSync(path.join(candidate, process.platform === "win32" ? "cargo.exe" : "cargo"))) || "";
+}
+
+const userCargoBin = resolveCargoBinDir();
 
 function resolveBinary(name) {
   const exeName = process.platform === "win32" ? `${name}.exe` : name;
@@ -24,11 +51,7 @@ function withRustEnv() {
 
 function hasBinary(name, args = ["--version"]) {
   const resolvedCommand = path.resolve(resolveBinary(name));
-  const [exec, execArgs] = process.platform === "win32"
-    ? ["cmd.exe", ["/c", resolvedCommand, ...args]]
-    : [resolvedCommand, args];
-
-  const result = spawnSync(exec, execArgs, {
+  const result = spawnSync(resolvedCommand, args, {
     encoding: "utf8",
     env: withRustEnv()
   });

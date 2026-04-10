@@ -3,16 +3,49 @@ import { config } from "./config.js";
 import { loadEnvFile } from "./env.js";
 import { readRequestJson, sendError, sendJson, sendStaticFile } from "./lib/http.js";
 import { createLogger } from "./lib/logger.js";
-import { answerInterviewQuestion, createInterviewSession, getBootstrapData, getInterviewSession, listInterviewSessions, resumePendingSessions, startBackgroundJobWorker } from "./services/interview-service.js";
-import { getObservabilityOverview, getSessionObservabilitySummary } from "./services/log-observability.js";
-import { getBackgroundJobSummary, listBackgroundJobSnapshots } from "./services/background-job-service.js";
-import { getKnowledgeDocumentEmbeddingStatus, listKnowledgeDocuments, searchSimilarKnowledge, syncKnowledgeEmbeddings } from "./services/knowledge-service.js";
-import { getQuestionBankItem, getQuestionBankSnapshot, listQuestionBankCategories, listQuestionBankTags, saveQuestionBankItem } from "./services/question-bank-service.js";
-import { getReviewSet, listReviewAttempts, listReviewItems, listReviewSets, recommendReviewSet, recordReviewAttempt, saveReviewSet, updateReviewItemStatus } from "./services/review-service.js";
-import { subscribeSession } from "./services/session-events.js";
-import { deleteInterviewTemplate, listInterviewTemplates, saveInterviewTemplate } from "./services/template-service.js";
 
 const serverLogger = createLogger({ component: "server" });
+let serverServices = null;
+const startupTraceEnabled = String(process.env.SERVER_STARTUP_TRACE || "false").toLowerCase() === "true";
+
+function writeStartupLog(message, fields = {}) {
+  if (!startupTraceEnabled) {
+    return;
+  }
+  const suffix = Object.keys(fields).length ? ` ${JSON.stringify(fields)}` : "";
+  console.error(`[server:startup] ${message}${suffix}`);
+}
+
+async function importServerModule(label, importer) {
+  writeStartupLog(`import.started:${label}`);
+  const mod = await importer();
+  writeStartupLog(`import.completed:${label}`);
+  return mod;
+}
+
+async function loadServerServices() {
+  const interviewService = await importServerModule("interview-service", () => import("./services/interview-service.js"));
+  const logObservability = await importServerModule("log-observability", () => import("./services/log-observability.js"));
+  const backgroundJobService = await importServerModule("background-job-service", () => import("./services/background-job-service.js"));
+  const desktopService = await importServerModule("desktop-service", () => import("./services/desktop-service.js"));
+  const knowledgeService = await importServerModule("knowledge-service", () => import("./services/knowledge-service.js"));
+  const questionBankService = await importServerModule("question-bank-service", () => import("./services/question-bank-service.js"));
+  const reviewService = await importServerModule("review-service", () => import("./services/review-service.js"));
+  const sessionEventsService = await importServerModule("session-events", () => import("./services/session-events.js"));
+  const templateService = await importServerModule("template-service", () => import("./services/template-service.js"));
+
+  return {
+    ...interviewService,
+    ...logObservability,
+    ...backgroundJobService,
+    ...desktopService,
+    ...knowledgeService,
+    ...questionBankService,
+    ...reviewService,
+    ...sessionEventsService,
+    ...templateService
+  };
+}
 
 function readPositiveInt(searchParams, key, fallback) {
   const raw = searchParams.get(key);
@@ -34,6 +67,43 @@ function sendSseEvent(res, event, payload) {
 // 这里使用手写路由而不是引入框架，
 // 目的是把请求面保持得足够小，便于定位和调试。
 async function handleApi(req, res, url) {
+  const {
+    answerInterviewQuestion,
+    cleanupDesktopRuntimeTarget,
+    createInterviewSession,
+    deleteInterviewTemplate,
+    getBackgroundJobSummary,
+    getBootstrapData,
+    getDesktopRuntimeSummary,
+    getInterviewSession,
+    importDesktopResumePackage,
+    getKnowledgeDocumentEmbeddingStatus,
+    getObservabilityOverview,
+    getQuestionBankItem,
+    getQuestionBankSnapshot,
+    getReviewSet,
+    getSessionObservabilitySummary,
+    listBackgroundJobSnapshots,
+    listInterviewSessions,
+    listInterviewTemplates,
+    listKnowledgeDocuments,
+    listQuestionBankCategories,
+    listQuestionBankTags,
+    listReviewAttempts,
+    listReviewItems,
+    listReviewSets,
+    recordReviewAttempt,
+    recommendReviewSet,
+    requestDesktopRuntimeReset,
+    saveInterviewTemplate,
+    saveQuestionBankItem,
+    saveReviewSet,
+    searchSimilarKnowledge,
+    subscribeSession,
+    syncKnowledgeEmbeddings,
+    updateReviewItemStatus
+  } = serverServices;
+
   if (req.method === "GET" && url.pathname === "/api/bootstrap") {
     sendJson(res, 200, await getBootstrapData());
     return true;
@@ -45,6 +115,39 @@ async function handleApi(req, res, url) {
       fileLimit: readPositiveInt(url.searchParams, "fileLimit", 3),
       lineLimitPerFile: readPositiveInt(url.searchParams, "lineLimitPerFile", 3000)
     }));
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/desktop/runtime") {
+    sendJson(res, 200, await getDesktopRuntimeSummary());
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/desktop/runtime/cleanup") {
+    const body = await readRequestJson(req).catch(() => ({}));
+    const result = await cleanupDesktopRuntimeTarget(body?.target || "");
+    if (!result) {
+      sendError(res, 400, "Unsupported desktop cleanup target.");
+      return true;
+    }
+    sendJson(res, 200, result);
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/desktop/runtime/reset") {
+    const body = await readRequestJson(req).catch(() => ({}));
+    const result = await requestDesktopRuntimeReset(body?.confirmationText || "");
+    if (!result) {
+      sendError(res, 400, "Invalid desktop reset confirmation text.");
+      return true;
+    }
+    sendJson(res, 200, result);
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/desktop/resume-package/import") {
+    const body = await readRequestJson(req).catch(() => ({}));
+    sendJson(res, 200, await importDesktopResumePackage(body?.files || []));
     return true;
   }
 
@@ -67,7 +170,15 @@ async function handleApi(req, res, url) {
       sendError(res, 400, "templateId, template, or roleId/jobId are required.");
       return true;
     }
-    sendJson(res, 201, await createInterviewSession(body));
+    try {
+      sendJson(res, 201, await createInterviewSession(body));
+    } catch (error) {
+      if (error?.code === "RESUME_PACKAGE_MISSING") {
+        sendError(res, 400, error.message);
+        return true;
+      }
+      throw error;
+    }
     return true;
   }
 
@@ -343,6 +454,13 @@ async function requestHandler(req, res) {
 }
 
 await loadEnvFile();
+writeStartupLog("env.loaded", {
+  repoRoot: config.repoRoot,
+  webDir: config.webDir,
+  port: config.port
+});
+serverServices = await loadServerServices();
+writeStartupLog("services.loaded");
 
 // 会话会完整落盘，所以进程重启后可以恢复未完成的面试。
 const server = http.createServer((req, res) => {
@@ -350,6 +468,9 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(config.port, () => {
+  writeStartupLog("listen.started", {
+    port: config.port
+  });
   serverLogger.info("server.started", {
     port: config.port,
     url: `http://localhost:${config.port}`,
@@ -360,7 +481,7 @@ server.listen(config.port, () => {
   });
 
   const resumeSpan = serverLogger.startSpan("server.resume_pending_sessions");
-  resumePendingSessions()
+  serverServices.resumePendingSessions()
     .then((count) => {
       resumeSpan.end({ resumedCount: count });
     })
@@ -368,5 +489,5 @@ server.listen(config.port, () => {
       resumeSpan.fail(error);
     });
 
-  startBackgroundJobWorker();
+  serverServices.startBackgroundJobWorker();
 });

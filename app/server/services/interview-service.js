@@ -2552,15 +2552,19 @@ async function processAnswerRun(sessionId, turnIndex) {
 }
 
 export async function getBootstrapData() {
-  const [{ normalized }, catalog, , templates] = await Promise.all([
+  const [resumePackage, catalog, , templates] = await Promise.all([
     loadResumePackage(),
     loadInterviewCatalog(),
     ensureQuestionBankSeeded(),
     listInterviewTemplates()
   ]);
+  const { normalized } = resumePackage;
 
   return {
     candidate: {
+      ready: Boolean(resumePackage.available),
+      workspacePath: resumePackage.directory,
+      missingFiles: resumePackage.missingFiles,
       profile: normalized.profile,
       headline: normalized.narrative.headline,
       summaryPoints: normalized.narrative.summaryPoints,
@@ -2601,12 +2605,21 @@ export async function createInterviewSession({ roleId, jobId, notes = "", enable
 
   const resolvedRoleId = resolvedTemplate?.roleId || roleId;
   const resolvedJobId = resolvedTemplate?.jobId || jobId;
-  const [{ normalized }, baseRole, baseJob] = await Promise.all([
+  const [resumePackage, baseRole, baseJob] = await Promise.all([
     loadResumePackage(),
     findRole(resolvedRoleId),
     findJob(resolvedJobId),
     ensureQuestionBankSeeded()
   ]);
+  const { normalized } = resumePackage;
+
+  if (!resumePackage.available) {
+    const error = new Error(
+      `Resume package is not initialized at ${resumePackage.directory}. Missing files: ${resumePackage.missingFiles.join(", ")}`
+    );
+    error.code = "RESUME_PACKAGE_MISSING";
+    throw error;
+  }
 
   if (!baseRole) {
     throw new Error(`Unknown role: ${resolvedRoleId}`);

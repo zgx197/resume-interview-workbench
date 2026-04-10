@@ -1,4 +1,13 @@
-import { fetchObservabilityOverview, fetchSessionObservability, request } from "./api.js";
+import {
+  cleanupDesktopRuntime,
+  fetchDesktopRuntime,
+  fetchBootstrap,
+  fetchObservabilityOverview,
+  importDesktopResumePackage,
+  fetchSessionObservability,
+  resetDesktopRuntime,
+  request
+} from "./api.js";
 import { elements } from "./dom.js";
 import { renderBootstrap, renderSession, syncAnswerControls } from "./renderers.js";
 import { state } from "./state.js";
@@ -110,6 +119,23 @@ export async function refreshObservability() {
   }
 }
 
+export async function refreshDesktopRuntime() {
+  try {
+    state.desktopRuntime = await fetchDesktopRuntime();
+    state.desktopRuntimeError = "";
+  } catch (error) {
+    state.desktopRuntimeError = error.message || "desktop runtime 加载失败";
+  } finally {
+    renderSession();
+  }
+}
+
+export async function refreshBootstrap() {
+  state.bootstrap = await fetchBootstrap();
+  renderBootstrap();
+  renderSession();
+}
+
 export function startObservabilityPolling() {
   if (state.observabilityPollingTimer) {
     return;
@@ -119,6 +145,102 @@ export function startObservabilityPolling() {
   state.observabilityPollingTimer = setInterval(() => {
     refreshObservability();
   }, OBSERVABILITY_POLL_INTERVAL_MS);
+}
+
+async function runDesktopCleanup(target) {
+  const runtime = state.desktopRuntime;
+  const cleanupTarget = runtime?.cleanupTargets?.find((item) => item.target === target);
+  if (!cleanupTarget) {
+    return;
+  }
+
+  const confirmed = window.confirm(`确认清理${cleanupTarget.label}吗？\n\n目录：${cleanupTarget.path}`);
+  if (!confirmed) {
+    return;
+  }
+
+  state.desktopActionTarget = target;
+  renderSession();
+
+  try {
+    await cleanupDesktopRuntime(target);
+    await refreshDesktopRuntime();
+  } finally {
+    state.desktopActionTarget = "";
+    renderSession();
+  }
+}
+
+async function runDesktopFullReset() {
+  const runtime = state.desktopRuntime;
+  if (!runtime?.enabled || runtime?.fullReset?.pending) {
+    return;
+  }
+
+  const confirmationText = runtime.fullReset?.confirmationText || "DELETE LOCAL DATA";
+  const input = window.prompt(
+    [
+      "这是危险操作，将在下次启动时删除全部本地数据。",
+      "包括本地 PostgreSQL 数据、题库资产、复习记录、日志、导出与配置。",
+      "",
+      `请输入 ${confirmationText} 以确认：`
+    ].join("\n"),
+    ""
+  );
+
+  if (input == null) {
+    return;
+  }
+
+  state.desktopActionTarget = "full-reset";
+  renderSession();
+
+  try {
+    await resetDesktopRuntime(input.trim());
+    await refreshDesktopRuntime();
+    window.alert("已计划在下次启动时删除全部本地数据。请关闭桌面应用后重新打开。");
+  } finally {
+    state.desktopActionTarget = "";
+    renderSession();
+  }
+}
+
+function readResumePackageFiles(fileList) {
+  return Promise.all(
+    [...(fileList || [])].map(async (file) => ({
+      name: file.name,
+      content: await file.text()
+    }))
+  );
+}
+
+async function importResumePackageFromInput() {
+  const input = elements.resumePackageInput;
+  if (!input?.files?.length) {
+    return;
+  }
+
+  state.resumeImporting = true;
+  renderBootstrap();
+  renderSession();
+
+  try {
+    const files = await readResumePackageFiles(input.files);
+    const result = await importDesktopResumePackage(files);
+    await refreshBootstrap();
+    await refreshDesktopRuntime();
+    const missingNote = result.missingFiles?.length
+      ? `\n当前仍缺少：${result.missingFiles.join("、")}`
+      : "";
+    window.alert(`简历导入完成，已写入本地工作区：\n${result.workspacePath}${missingNote}`);
+  } catch (error) {
+    window.alert(error.message || "简历导入失败");
+  } finally {
+    state.resumeImporting = false;
+    input.value = "";
+    renderBootstrap();
+    renderSession();
+  }
 }
 
 function switchObservabilityScope(scope) {
@@ -199,6 +321,11 @@ async function deleteCurrentTemplate() {
 }
 
 async function startInterview() {
+  if (!state.bootstrap?.candidate?.ready) {
+    window.alert("当前工作区还没有导入简历，暂时不能开始面试。");
+    return;
+  }
+
   elements.startButton.disabled = true;
 
   try {
@@ -290,6 +417,31 @@ function bindObservabilityInteractions() {
   });
 }
 
+function bindDesktopInteractions() {
+  elements.desktopRuntimePanel?.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-desktop-cleanup-target]");
+    if (action) {
+      void runDesktopCleanup(action.dataset.desktopCleanupTarget);
+      return;
+    }
+
+    const resetAction = event.target.closest("[data-desktop-full-reset]");
+    if (resetAction) {
+      void runDesktopFullReset();
+    }
+  });
+}
+
+function bindResumeImportInteractions() {
+  elements.importResumeButton?.addEventListener("click", () => {
+    elements.resumePackageInput?.click();
+  });
+
+  elements.resumePackageInput?.addEventListener("change", () => {
+    void importResumePackageFromInput();
+  });
+}
+
 export function bindUiEvents() {
   elements.loadTemplateButton.addEventListener("click", loadSelectedTemplate);
   elements.newTemplateButton.addEventListener("click", () => fillTemplateForm(createBlankTemplate()));
@@ -301,5 +453,7 @@ export function bindUiEvents() {
   elements.answerInput.addEventListener("input", syncAnswerControls);
   bindTemplateFormDirtyTracking();
   bindObservabilityInteractions();
+  bindDesktopInteractions();
+  bindResumeImportInteractions();
   window.addEventListener("beforeunload", stopObservabilityPolling);
 }

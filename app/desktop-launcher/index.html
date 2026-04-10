@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Resume Interview Workbench</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="launcher-shell">
+      <section class="launcher-card">
+        <p class="eyebrow">Resume Interview Workbench</p>
+        <h1 id="launcher-title">正在准备 desktop runtime</h1>
+        <p id="launcher-copy" class="copy">
+          桌面应用正在启动本地数据库和工作台服务。首次启动可能会稍慢一些，请耐心等待。
+        </p>
+        <div id="launcher-status-line" class="status-line" data-status="starting">
+          <span class="dot"></span>
+          <span id="launcher-status-text">启动中...</span>
+        </div>
+        <ol class="launcher-steps" id="launcher-steps">
+          <li data-step="prepare" class="is-active">检查运行资源</li>
+          <li data-step="backend">启动本地服务</li>
+          <li data-step="wait">等待工作台就绪</li>
+          <li data-step="ready">进入工作台</li>
+        </ol>
+        <pre id="launcher-detail" class="launcher-detail" hidden></pre>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const title = document.getElementById("launcher-title");
+        const copy = document.getElementById("launcher-copy");
+        const statusLine = document.getElementById("launcher-status-line");
+        const statusText = document.getElementById("launcher-status-text");
+        const detail = document.getElementById("launcher-detail");
+        const steps = Array.from(document.querySelectorAll("#launcher-steps [data-step]"));
+
+        function apply(state = {}) {
+          const currentStep = state.step || "prepare";
+          const status = state.status || "starting";
+          const currentIndex = steps.findIndex((item) => item.dataset.step === currentStep);
+
+          title.textContent = state.title || "正在准备 desktop runtime";
+          copy.textContent = state.copy || "桌面应用正在启动本地数据库和工作台服务。";
+          statusText.textContent = state.statusText || "启动中...";
+          statusLine.dataset.status = status;
+
+          for (const [index, item] of steps.entries()) {
+            const isCurrent = item.dataset.step === currentStep;
+            const isDone = currentIndex >= 0 && index < currentIndex;
+            item.classList.toggle("is-active", isCurrent);
+            item.classList.toggle("is-done", isDone || (status === "ready" && item.dataset.step === "ready"));
+            item.classList.toggle("is-error", status === "error" && isCurrent);
+          }
+
+          if (state.detail) {
+            detail.hidden = false;
+            detail.textContent = state.detail;
+          } else {
+            detail.hidden = true;
+            detail.textContent = "";
+          }
+        }
+
+        window.__desktopLauncherApply = apply;
+        apply(window.__desktopLauncherState || {});
+      })();
+    </script>
+  </body>
+</html>

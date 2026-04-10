@@ -47,6 +47,10 @@
           <p id="candidate-name" class="identity-name mono"></p>
           <p id="candidate-role" class="identity-role"></p>
           <ul id="candidate-summary" class="compact-list"></ul>
+          <div class="action-grid">
+            <button id="import-resume-button" class="secondary-button">导入简历</button>
+          </div>
+          <input id="resume-package-input" type="file" accept=".json,application/json" multiple hidden />
         </section>
 
         <section class="panel template-panel">
@@ -75,39 +79,39 @@
           <div class="wizard-block">
             <label class="field">
               <span>模板名称</span>
-              <input id="template-name-input" type="text" placeholder="例如：某游戏工作室 U3D 技术负责人面试" />
+              <input id="template-name-input" type="text" placeholder="例如：客户端开发岗位技术面试" />
             </label>
 
             <div class="dual-field">
               <label class="field">
                 <span>公司名称</span>
-                <input id="company-name-input" type="text" placeholder="例如：HUNGRY STUDIO" />
+                <input id="company-name-input" type="text" placeholder="例如：某科技团队" />
               </label>
 
               <label class="field">
                 <span>岗位方向</span>
-                <input id="job-direction-input" type="text" placeholder="例如：高级游戏 U3D 开发工程师" />
+                <input id="job-direction-input" type="text" placeholder="例如：高级客户端开发工程师" />
               </label>
             </div>
 
             <label class="field">
               <span>公司介绍</span>
-              <textarea id="company-intro-input" rows="3" placeholder="简要说明公司背景、团队规模、产品线与业务阶段。"></textarea>
+              <textarea id="company-intro-input" rows="3" placeholder="简要说明团队背景、业务方向、当前阶段与协作方式。"></textarea>
             </label>
 
             <label class="field">
               <span>岗位介绍</span>
-              <textarea id="job-description-input" rows="4" placeholder="填写岗位职责、能力要求和重点考察方向。"></textarea>
+              <textarea id="job-description-input" rows="4" placeholder="填写岗位职责、能力要求、技术范围与重点考察方向。"></textarea>
             </label>
 
             <label class="field">
               <span>其他内容</span>
-              <textarea id="additional-context-input" rows="3" placeholder="可补充薪资、地点、标签，或你希望重点追问的方向。"></textarea>
+              <textarea id="additional-context-input" rows="3" placeholder="可补充工作方式、团队约束、候选人背景差异，或希望重点追问的方向。"></textarea>
             </label>
 
             <label class="field">
               <span>面试官角色</span>
-              <input id="interviewer-role-name-input" type="text" placeholder="例如：技术负责人、CTO、游戏主策划" />
+              <input id="interviewer-role-name-input" type="text" placeholder="例如：技术负责人、项目负责人、招聘面试官" />
             </label>
           </div>
 
@@ -240,6 +244,15 @@
                 </div>
               </div>
               <div id="observability-panel" class="empty-state">日志聚合视图加载中...</div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Desktop</p>
+                  <h2>portable runtime</h2>
+                </div>
+              </div>
+              <div id="desktop-runtime-panel" class="empty-state">Loading desktop runtime...</div>
             </section>
           </aside>
         </section>

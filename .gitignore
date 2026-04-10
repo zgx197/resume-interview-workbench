@@ -10,10 +10,17 @@ dist/
 build/
 coverage/
 .vite/
+.desktop-dist/
 src-tauri/target/
 
 # Desktop runtime staging
 .desktop-cache/
+src-tauri/resources/app-runtime/**
+!src-tauri/resources/app-runtime/
+!src-tauri/resources/app-runtime/README.md
+src-tauri/resources/node/windows-x64/**
+!src-tauri/resources/node/
+!src-tauri/resources/node/README.md
 src-tauri/resources/postgres/windows-x64/**
 !src-tauri/resources/postgres/
 !src-tauri/resources/postgres/README.md

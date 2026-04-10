@@ -8,6 +8,8 @@ export const elements = {
   candidateName: query("#candidate-name"),
   candidateRole: query("#candidate-role"),
   candidateSummary: query("#candidate-summary"),
+  importResumeButton: query("#import-resume-button"),
+  resumePackageInput: query("#resume-package-input"),
   candidateYears: query("#candidate-years"),
   templateCount: query("#template-count"),
   sessionMode: query("#session-mode"),
@@ -45,5 +47,6 @@ export const elements = {
   answerButton: query("#answer-button"),
   reportPanel: query("#report-panel"),
   backgroundJobsPanel: query("#background-jobs-panel"),
-  observabilityPanel: query("#observability-panel")
+  observabilityPanel: query("#observability-panel"),
+  desktopRuntimePanel: query("#desktop-runtime-panel")
 };

@@ -32,6 +32,31 @@ export function fetchBootstrap() {
   return request("/api/bootstrap");
 }
 
+export function fetchDesktopRuntime() {
+  return request("/api/desktop/runtime");
+}
+
+export function cleanupDesktopRuntime(target) {
+  return request("/api/desktop/runtime/cleanup", {
+    method: "POST",
+    body: JSON.stringify({ target })
+  });
+}
+
+export function resetDesktopRuntime(confirmationText) {
+  return request("/api/desktop/runtime/reset", {
+    method: "POST",
+    body: JSON.stringify({ confirmationText })
+  });
+}
+
+export function importDesktopResumePackage(files) {
+  return request("/api/desktop/resume-package/import", {
+    method: "POST",
+    body: JSON.stringify({ files })
+  });
+}
+
 export function fetchObservabilityOverview(params = {}) {
   return request(`/api/debug/logs/summary${buildQueryString(params)}`);
 }

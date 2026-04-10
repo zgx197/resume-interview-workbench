@@ -1,10 +1,15 @@
 import crypto from "node:crypto";
+import { config } from "../config.js";
 import { createDbTemplateRepository } from "../repositories/db/db-template-repository.js";
 import { createFileTemplateRepository } from "../repositories/file/file-template-repository.js";
 
 const templateRepository = createDbTemplateRepository();
 const fileTemplateRepository = createFileTemplateRepository();
 let importTemplatesPromise = null;
+let purgeLegacyTemplatesPromise = null;
+const LEGACY_DESKTOP_BUILTIN_TEMPLATE_IDS = [
+  "hungry-studio-senior-u3d-template"
+];
 
 function toStringValue(value) {
   return String(value || "").trim();
@@ -42,10 +47,35 @@ function normalizeTemplateInput(input = {}, { existingId = null } = {}) {
 }
 
 async function importTemplatesFromFiles() {
+  if (!config.templateFileImportEnabled) {
+    return;
+  }
+
   const templates = await fileTemplateRepository.list();
   for (const template of templates) {
     await templateRepository.importIfMissing(template);
   }
+}
+
+async function purgeLegacyDesktopBuiltinTemplates() {
+  if (config.templateFileImportEnabled) {
+    return;
+  }
+
+  for (const templateId of LEGACY_DESKTOP_BUILTIN_TEMPLATE_IDS) {
+    await templateRepository.archive(templateId);
+  }
+}
+
+async function ensureLegacyDesktopTemplatesPurged() {
+  if (!purgeLegacyTemplatesPromise) {
+    purgeLegacyTemplatesPromise = purgeLegacyDesktopBuiltinTemplates().catch((error) => {
+      purgeLegacyTemplatesPromise = null;
+      throw error;
+    });
+  }
+
+  await purgeLegacyTemplatesPromise;
 }
 
 async function ensureTemplatesImported() {
@@ -60,11 +90,13 @@ async function ensureTemplatesImported() {
 }
 
 export async function listInterviewTemplates() {
+  await ensureLegacyDesktopTemplatesPurged();
   await ensureTemplatesImported();
   return templateRepository.list();
 }
 
 export async function loadInterviewTemplate(templateId) {
+  await ensureLegacyDesktopTemplatesPurged();
   await ensureTemplatesImported();
   const template = await templateRepository.getById(templateId);
   if (!template) {
@@ -74,6 +106,7 @@ export async function loadInterviewTemplate(templateId) {
 }
 
 export async function saveInterviewTemplate(input) {
+  await ensureLegacyDesktopTemplatesPurged();
   await ensureTemplatesImported();
   const existing = input.id ? await templateRepository.getById(input.id) : null;
   const normalized = normalizeTemplateInput(input, { existingId: existing?.id || null });
@@ -88,11 +121,13 @@ export async function saveInterviewTemplate(input) {
 }
 
 export async function deleteInterviewTemplate(templateId) {
+  await ensureLegacyDesktopTemplatesPurged();
   await ensureTemplatesImported();
   await templateRepository.archive(templateId);
 }
 
 export async function markInterviewTemplateUsed(templateId) {
+  await ensureLegacyDesktopTemplatesPurged();
   await ensureTemplatesImported();
   const template = await templateRepository.markUsed(templateId);
   if (!template) {

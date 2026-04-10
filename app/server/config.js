@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "..", "..");
+const defaultRepoRoot = path.resolve(__dirname, "..", "..");
+const repoRoot = path.resolve(process.env.APP_ROOT || defaultRepoRoot);
 
 function resolveRepoPath(value, fallbackRelativePath) {
   const targetPath = value || fallbackRelativePath;
@@ -116,16 +117,27 @@ export const config = {
     return resolveRepoPath(process.env.LOG_DIR, path.join("storage", "logs"));
   },
   get resumePackageDir() {
-    return path.join(repoRoot, "resume-package");
+    return resolveRepoPath(process.env.RESUME_PACKAGE_DIR, "resume-package");
   },
   get rolesDir() {
-    return path.join(repoRoot, "interview-kit", "roles");
+    return resolveRepoPath(process.env.ROLES_DIR, path.join("interview-kit", "roles"));
   },
   get jobsDir() {
-    return path.join(repoRoot, "interview-kit", "jobs");
+    return resolveRepoPath(process.env.JOBS_DIR, path.join("interview-kit", "jobs"));
   },
   get templatesDir() {
-    return path.join(repoRoot, "interview-kit", "templates");
+    return resolveRepoPath(process.env.TEMPLATES_DIR, path.join("interview-kit", "templates"));
+  },
+  get desktopSeedDir() {
+    return resolveRepoPath(process.env.DESKTOP_SEED_DIR, "desktop-seed");
+  },
+  get templateFileImportEnabled() {
+    if (process.env.TEMPLATE_FILE_IMPORT_ENABLED != null && process.env.TEMPLATE_FILE_IMPORT_ENABLED !== "") {
+      return readBooleanEnv("TEMPLATE_FILE_IMPORT_ENABLED", true);
+    }
+
+    const isDesktopRuntime = Boolean(process.env.DESKTOP_DATA_DIR || process.env.DESKTOP_RUNTIME_MODE);
+    return !isDesktopRuntime;
   },
   get webDir() {
     return path.join(repoRoot, "app", "web");

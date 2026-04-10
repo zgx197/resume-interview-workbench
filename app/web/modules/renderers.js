@@ -71,15 +71,35 @@ function updateShellSummary() {
 
 export function renderBootstrap() {
   const { candidate, roles, jobs, provider } = state.bootstrap;
+  const resumeReady = Boolean(candidate.ready);
+  const missingFiles = candidate.missingFiles || [];
+  const summaryPoints = (candidate.summaryPoints || []).length
+    ? [...candidate.summaryPoints]
+    : [];
+  if (!resumeReady) {
+    summaryPoints.push("当前 portable 发布包不会携带开发者本地简历数据。");
+    summaryPoints.push(`请把你的简历数据导入到本地工作区：${candidate.workspacePath || "Local workspace"}`);
+    summaryPoints.push("推荐一次选择 resume.json、resume.meta.json、resume.schema.json 三个文件。");
+  } else if (missingFiles.length) {
+    summaryPoints.push(`当前工作区仍缺少：${missingFiles.join("、")}`);
+  }
   elements.providerBadge.textContent = provider.configured
     ? `Provider 路 ${provider.mode}`
     : "Provider 路 fallback only";
   elements.candidateName.textContent = candidate.profile.name || "未命名候选人";
   elements.candidateRole.textContent = candidate.profile.role || "暂无岗位信息";
-  elements.candidateSummary.innerHTML = (candidate.summaryPoints || [])
+  elements.candidateSummary.innerHTML = summaryPoints
     .slice(0, 4)
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join("");
+  if (!resumeReady) {
+    elements.candidateName.textContent = "未导入简历";
+    elements.candidateRole.textContent = "请先导入个人简历后再开始面试";
+    elements.candidateSummary.innerHTML = summaryPoints
+      .slice(0, 4)
+      .map((item) => `<li>${escapeHtml(item)}</li>`)
+      .join("");
+  }
   elements.roleSelect.innerHTML = roles
     .map((role) => `<option value="${escapeHtml(role.id)}">${escapeHtml(role.name)}</option>`)
     .join("");
@@ -89,6 +109,20 @@ export function renderBootstrap() {
   elements.topicGrid.innerHTML = (candidate.topTopics || [])
     .map((topic) => `<span class="topic-tag">${escapeHtml(topic.label)}</span>`)
     .join("");
+  if (!candidate.topTopics?.length) {
+    elements.topicGrid.innerHTML = '<span class="topic-tag">待导入简历</span>';
+  }
+  if (elements.importResumeButton) {
+    elements.importResumeButton.disabled = state.resumeImporting;
+    elements.importResumeButton.textContent = state.resumeImporting ? "正在导入..." : "导入简历";
+    elements.importResumeButton.title = candidate.workspacePath
+      ? `本地工作区：${candidate.workspacePath}`
+      : "";
+  }
+  elements.startButton.disabled = !resumeReady || state.resumeImporting;
+  elements.startButton.title = resumeReady
+    ? ""
+    : "当前工作区还没有导入简历，暂时不能开始面试。";
   state.bootstrap.templates = sortTemplates(state.bootstrap.templates || []);
   renderTemplatePicker();
   fillTemplateForm(state.bootstrap.templates[0] || createBlankTemplate());
@@ -1050,6 +1084,153 @@ function renderObservabilityPanel() {
   `;
 }
 
+function renderDesktopRuntimePanel() {
+  if (!elements.desktopRuntimePanel) {
+    return;
+  }
+
+  if (!state.desktopRuntime && !state.desktopRuntimeError) {
+    elements.desktopRuntimePanel.className = "empty-state";
+    elements.desktopRuntimePanel.textContent = "Loading desktop runtime...";
+    return;
+  }
+
+  if (state.desktopRuntimeError) {
+    elements.desktopRuntimePanel.className = "empty-state";
+    elements.desktopRuntimePanel.textContent = state.desktopRuntimeError;
+    return;
+  }
+
+  const runtime = state.desktopRuntime;
+  const cleanupTargets = runtime?.cleanupTargets || [];
+  const fullReset = runtime?.fullReset || null;
+
+  if (!runtime?.enabled) {
+    elements.desktopRuntimePanel.className = "empty-state";
+    elements.desktopRuntimePanel.textContent = "当前是普通 Web 运行模式，未启用 desktop runtime。";
+    return;
+  }
+
+  const counts = runtime.counts || {};
+  const metricItems = [
+    ["缓存", counts.cacheEntries],
+    ["临时文件", counts.tmpEntries],
+    ["日志", counts.logEntries],
+    ["导出", counts.exportEntries]
+  ];
+
+  elements.desktopRuntimePanel.className = "report-grid";
+  elements.desktopRuntimePanel.innerHTML = `
+    <article class="report-card">
+      <p class="card-kicker">Runtime</p>
+      <div class="metric-grid compact">
+        <div class="metric-tile">
+          <span class="metric-label">运行模式</span>
+          <strong>${escapeHtml(runtime.desktopRuntimeMode || "desktop")}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">数据库模式</span>
+          <strong>${escapeHtml(runtime.desktopDatabaseMode || "managed")}</strong>
+        </div>
+      </div>
+      <div class="graph-detail-sections">
+        <section class="graph-detail-section">
+          <p class="detail-label">数据目录</p>
+          <div class="markdown-code">${escapeHtml(runtime.dataDir || "")}</div>
+        </section>
+        <section class="graph-detail-section">
+          <p class="detail-label">关键路径</p>
+          <div class="turn-meta">
+            <span>logs: ${escapeHtml(runtime.paths?.logsDir || "")}</span>
+            <span>exports: ${escapeHtml(runtime.paths?.exportsDir || "")}</span>
+            <span>config: ${escapeHtml(runtime.paths?.configDir || "")}</span>
+          </div>
+        </section>
+      </div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Usage</p>
+      <div class="metric-grid compact">
+        ${metricItems.map(([label, count]) => `
+          <div class="metric-tile">
+            <span class="metric-label">${escapeHtml(label)}</span>
+            <strong>${escapeHtml(count ?? 0)}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+    <article class="report-card">
+      <p class="card-kicker">Cleanup</p>
+      <div class="desktop-cleanup-grid">
+        ${cleanupTargets.map((target) => `
+          <button
+            type="button"
+            class="${target.target === "config" ? "ghost-danger-button" : "secondary-button"}"
+            data-desktop-cleanup-target="${escapeHtml(target.target)}"
+            ${state.desktopActionTarget === target.target ? "disabled" : ""}
+          >
+            ${escapeHtml(state.desktopActionTarget === target.target ? `正在清理${target.label}` : `清理${target.label}`)}
+          </button>
+        `).join("")}
+      </div>
+      <div class="graph-detail-sections">
+        ${cleanupTargets.map((target) => `
+          <section class="graph-detail-section">
+            <div class="turn-meta">
+              <span>${escapeHtml(target.label)}</span>
+              <span>${escapeHtml(target.path)}</span>
+            </div>
+            <p class="summary-copy">${escapeHtml(target.description)}</p>
+          </section>
+        `).join("")}
+      </div>
+    </article>
+    <article class="report-card desktop-danger-card">
+      <p class="card-kicker">Danger Zone</p>
+      <div class="turn-header">
+        <div>
+          <h3 class="card-title">删除全部本地数据</h3>
+          <p class="summary-copy">
+            该操作不会在线直接删除数据库目录，而是写入重置标记，并在下次启动时执行完整清理。
+          </p>
+        </div>
+        <div class="summary-badges">
+          ${fullReset?.pending ? renderPill("等待重启生效", "accent") : renderPill("危险操作")}
+        </div>
+      </div>
+      <div class="graph-detail-sections">
+        <section class="graph-detail-section">
+          <p class="detail-label">将被清理的数据</p>
+          <div class="markdown-block subtle">
+            ${renderMarkdown("- PostgreSQL 本地数据\n- 题库与复习资产\n- 日志、导出、缓存与本地配置")}
+          </div>
+        </section>
+        <section class="graph-detail-section">
+          <p class="detail-label">当前状态</p>
+          <div class="turn-meta">
+            <span>${escapeHtml(fullReset?.pending ? "已写入重置标记" : "未计划重置")}</span>
+            <span>${escapeHtml(fullReset?.markerPath || "")}</span>
+          </div>
+        </section>
+      </div>
+      <div class="desktop-danger-actions">
+        <button
+          type="button"
+          class="ghost-danger-button"
+          data-desktop-full-reset="true"
+          ${(state.desktopActionTarget === "full-reset" || fullReset?.pending) ? "disabled" : ""}
+        >
+          ${escapeHtml(
+            fullReset?.pending
+              ? "已计划删除，等待重启"
+              : (state.desktopActionTarget === "full-reset" ? "正在计划删除" : "删除全部本地数据")
+          )}
+        </button>
+      </div>
+    </article>
+  `;
+}
+
 export function syncAnswerControls() {
   const canAnswer = state.session?.status === "active";
   elements.answerInput.disabled = !canAnswer;
@@ -1094,6 +1275,7 @@ export function renderSession() {
     renderReport();
     renderBackgroundJobs();
     renderObservabilityPanel();
+    renderDesktopRuntimePanel();
     syncAnswerControls();
     stopRunClock();
     return;
@@ -1125,6 +1307,7 @@ export function renderSession() {
   renderReport();
   renderBackgroundJobs();
   renderObservabilityPanel();
+  renderDesktopRuntimePanel();
   syncAnswerControls();
   ensureRunClock();
   updateShellSummary();

@@ -19,7 +19,8 @@ export function scriptError(scope, message) {
 export function runCommand(command, args, {
   cwd = config.repoRoot,
   env = process.env,
-  input = null
+  input = null,
+  completionEvent = "close"
 } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -30,17 +31,23 @@ export function runCommand(command, args, {
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
 
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
+    function settleError(error) {
+      if (settled) {
+        return;
+      }
 
-    child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
+      settled = true;
+      reject(error);
+    }
 
-    child.on("error", reject);
-    child.on("close", (code) => {
+    function settleExit(code) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
       if (code === 0) {
         resolve({ stdout, stderr, code });
         return;
@@ -53,6 +60,19 @@ export function runCommand(command, args, {
       error.stdout = stdout;
       error.stderr = stderr;
       reject(error);
+    }
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    child.on("error", settleError);
+    child.on(completionEvent, (code) => {
+      settleExit(code);
     });
 
     if (input != null && child.stdin) {

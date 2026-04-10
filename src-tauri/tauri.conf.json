@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run desktop:dev:server",
     "devUrl": "http://127.0.0.1:3000",
-    "frontendDist": "../app/web"
+    "frontendDist": "../app/desktop-launcher"
   },
   "app": {
     "windows": [
@@ -29,6 +29,8 @@
     "active": true,
     "targets": "all",
     "resources": [
+      "resources/app-runtime",
+      "resources/node",
       "resources/postgres"
     ]
   }

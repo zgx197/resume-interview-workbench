@@ -63,15 +63,25 @@ async function ensureDatabaseReady() {
 async function main() {
   await loadEnvFile();
   await ensureDatabaseReady();
-  const packageFiles = await fs.readdir(config.resumePackageDir);
+  const packageFiles = await fs.readdir(config.resumePackageDir).catch((error) => {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  });
   const catalog = await loadInterviewCatalog();
   const resumePackage = await loadResumePackage();
 
-  console.log("resume-package files:", packageFiles.join(", "));
+  console.log("resume-package files:", packageFiles.join(", ") || "(empty workspace)");
   console.log("roles:", catalog.roles.map((role) => role.id).join(", "));
   console.log("jobs:", catalog.jobs.map((job) => job.id).join(", "));
-  console.log("candidate:", resumePackage.normalized.profile.name);
+  console.log("candidate:", resumePackage.available ? resumePackage.normalized.profile.name : "(resume not imported)");
   console.log("provider:", config.aiProvider, config.moonshotModel, config.moonshotThinking);
+
+  if (!resumePackage.available) {
+    console.log("resume-package status:", `missing ${resumePackage.missingFiles.join(", ")} at ${resumePackage.directory}`);
+    return;
+  }
 
   const session = await createInterviewSession({
     roleId: catalog.roles[0].id,

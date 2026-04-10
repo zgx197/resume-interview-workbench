@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.js";
 import { readJson } from "../lib/fs-utils.js";
@@ -306,21 +307,97 @@ function normalizeResume(rawPackage) {
 
 let cache = null;
 
+export function invalidateResumePackageCache() {
+  cache = null;
+}
+
+function createEmptyNormalizedResume() {
+  return {
+    packageVersion: "workspace-empty",
+    exportedAt: null,
+    profile: {
+      name: "",
+      role: "",
+      bio: "",
+      strengths: [],
+      contacts: [],
+      estimatedYearsExperience: null
+    },
+    narrative: {
+      headline: "当前工作区还没有导入简历",
+      summaryPoints: [
+        "当前发布包不会再携带开发者本地简历数据。",
+        "请在本地工作区导入你自己的简历后再开始面试。"
+      ],
+      focusAreas: [],
+      profileFacts: []
+    },
+    experiences: [],
+    projects: [],
+    skillGroups: [],
+    honors: [],
+    education: [],
+    topicInventory: [],
+    evidenceGraph: {
+      nodes: [],
+      edges: []
+    },
+    topicGraph: {
+      nodes: [],
+      edges: []
+    }
+  };
+}
+
+async function tryReadResumeFile(filePath) {
+  try {
+    await fs.access(filePath);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+
+  return readJson(filePath);
+}
+
 // 进程生命周期内简历包基本不会变化，做一次缓存即可显著降低重复建会话成本。
 export async function loadResumePackage() {
   if (cache) {
     return cache;
   }
 
-  const resume = await readJson(path.join(config.resumePackageDir, "resume.json"));
-  const meta = await readJson(path.join(config.resumePackageDir, "resume.meta.json"));
-  const schema = await readJson(path.join(config.resumePackageDir, "resume.schema.json"));
+  const resumePath = path.join(config.resumePackageDir, "resume.json");
+  const metaPath = path.join(config.resumePackageDir, "resume.meta.json");
+  const schemaPath = path.join(config.resumePackageDir, "resume.schema.json");
+  const [resume, meta, schema] = await Promise.all([
+    tryReadResumeFile(resumePath),
+    tryReadResumeFile(metaPath),
+    tryReadResumeFile(schemaPath)
+  ]);
+
+  const available = Boolean(resume && meta);
+  const missingFiles = [];
+  if (!resume) {
+    missingFiles.push("resume.json");
+  }
+  if (!meta) {
+    missingFiles.push("resume.meta.json");
+  }
+  if (!schema) {
+    missingFiles.push("resume.schema.json");
+  }
 
   cache = {
+    available,
+    directory: config.resumePackageDir,
+    missingFiles,
     raw: resume,
     meta,
     schema,
-    normalized: normalizeResume(resume)
+    normalized: available ? normalizeResume(resume) : createEmptyNormalizedResume()
   };
 
   return cache;

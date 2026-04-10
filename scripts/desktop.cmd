@@ -1,4 +1,4 @@
 @echo off
 setlocal
-powershell -ExecutionPolicy Bypass -File "%~dp0desktop.ps1" %*
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0desktop.ps1" %*
 endlocal
