@@ -31,6 +31,7 @@ async function loadServerServices() {
   const knowledgeService = await importServerModule("knowledge-service", () => import("./services/knowledge-service.js"));
   const questionBankService = await importServerModule("question-bank-service", () => import("./services/question-bank-service.js"));
   const reviewService = await importServerModule("review-service", () => import("./services/review-service.js"));
+  const settingsService = await importServerModule("settings-service", () => import("./services/settings-service.js"));
   const sessionEventsService = await importServerModule("session-events", () => import("./services/session-events.js"));
   const templateService = await importServerModule("template-service", () => import("./services/template-service.js"));
 
@@ -42,6 +43,7 @@ async function loadServerServices() {
     ...knowledgeService,
     ...questionBankService,
     ...reviewService,
+    ...settingsService,
     ...sessionEventsService,
     ...templateService
   };
@@ -82,6 +84,7 @@ async function handleApi(req, res, url) {
     getQuestionBankItem,
     getQuestionBankSnapshot,
     getReviewSet,
+    getAppSettings,
     getSessionObservabilitySummary,
     listBackgroundJobSnapshots,
     listInterviewSessions,
@@ -99,6 +102,7 @@ async function handleApi(req, res, url) {
     saveQuestionBankItem,
     saveReviewSet,
     searchSimilarKnowledge,
+    saveAppSettings,
     subscribeSession,
     syncKnowledgeEmbeddings,
     updateReviewItemStatus
@@ -120,6 +124,17 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/desktop/runtime") {
     sendJson(res, 200, await getDesktopRuntimeSummary());
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/settings") {
+    sendJson(res, 200, await getAppSettings());
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/settings") {
+    const body = await readRequestJson(req).catch(() => ({}));
+    sendJson(res, 200, await saveAppSettings(body || {}));
     return true;
   }
 
