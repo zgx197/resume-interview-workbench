@@ -154,16 +154,16 @@ function buildOverlayPanelSnapshot(element, fallbackText) {
   const html = element?.innerHTML?.trim();
   const className = element?.className || "empty-state";
   if (html) {
-    return `<div class="${className}">${html}</div>`;
+    return `<div class="overlay-panel-snapshot ${className}">${html}</div>`;
   }
 
-  return `<div class="${className}">${escapeHtml(element?.textContent || fallbackText)}</div>`;
+  return `<div class="overlay-panel-snapshot ${className}">${escapeHtml(element?.textContent || fallbackText)}</div>`;
 }
 
 function buildOverlaySessionSummary() {
   if (!state.session) {
     return `
-      <article class="panel modal-panel overlay-summary-panel">
+      <article class="panel ui-panel modal-panel overlay-summary-panel">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Session</p>
@@ -182,7 +182,7 @@ function buildOverlaySessionSummary() {
   const backgroundJobs = state.session.backgroundJobs || [];
 
   return `
-    <article class="panel modal-panel overlay-summary-panel">
+    <article class="panel ui-panel modal-panel overlay-summary-panel">
       <div class="panel-header">
         <div>
           <p class="eyebrow">Session</p>
@@ -271,7 +271,7 @@ function renderAppOverlay() {
     elements.overlayBody.innerHTML = `
       <div class="modal-grid app-overlay-grid planning-overlay-grid">
         <div class="modal-column">
-          <article class="panel modal-panel">
+          <article class="panel ui-panel modal-panel">
             <div class="panel-header">
               <div>
                 <p class="eyebrow">Graph</p>
@@ -282,7 +282,7 @@ function renderAppOverlay() {
               ${buildOverlayPanelSnapshot(elements.runGraph, "计划图谱加载中...")}
             </div>
           </article>
-          <article class="panel modal-panel">
+          <article class="panel ui-panel modal-panel">
             <div class="panel-header">
               <div>
                 <p class="eyebrow">Focus</p>
@@ -294,7 +294,7 @@ function renderAppOverlay() {
             </div>
           </article>
         </div>
-        <article class="panel modal-panel">
+        <article class="panel ui-panel modal-panel">
           <div class="panel-header">
             <div>
               <p class="eyebrow">Plan</p>
@@ -329,7 +329,7 @@ function renderAppOverlay() {
 
   elements.overlayBody.innerHTML = `
     <div class="modal-grid app-overlay-grid review-overlay-grid">
-      <article class="panel modal-panel">
+      <article class="panel ui-panel modal-panel">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Workspace</p>
@@ -399,7 +399,7 @@ function renderDashboardOverviewPanel() {
     ? findTemplateById(state.currentTemplateId)
     : null;
 
-  elements.dashboardOverviewPanel.className = "panel";
+  elements.dashboardOverviewPanel.className = "panel ui-panel";
   elements.dashboardOverviewPanel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -444,7 +444,7 @@ function renderDashboardSessionPanel() {
 
   const session = state.session;
   if (!session) {
-    elements.dashboardSessionPanel.className = "panel";
+    elements.dashboardSessionPanel.className = "panel ui-panel";
     elements.dashboardSessionPanel.innerHTML = `
       <div class="panel-header">
         <div>
@@ -461,7 +461,7 @@ function renderDashboardSessionPanel() {
   }
 
   const thread = findCurrentThread(session);
-  elements.dashboardSessionPanel.className = "panel";
+  elements.dashboardSessionPanel.className = "panel ui-panel";
   elements.dashboardSessionPanel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -473,12 +473,12 @@ function renderDashboardSessionPanel() {
         ${renderPill(`${session.turns?.length || 0} rounds`)}
       </div>
     </div>
-    <div class="graph-detail-sections">
-      <section class="graph-detail-section">
+    <div class="graph-detail-sections ui-detail">
+      <section class="graph-detail-section ui-detail-group">
         <p class="detail-label">${renderLabelWithTooltip("线程", "当前问题落在哪条话题线程里，方便判断追问是否还在同一上下文。")}</p>
         <p class="summary-copy">${escapeHtml(thread?.label || "等待进入新的问题线程")}</p>
       </section>
-      <section class="graph-detail-section">
+      <section class="graph-detail-section ui-detail-group">
         <p class="detail-label">${renderLabelWithTooltip("计划", "这里显示当前会话的阶段计划摘要，不再把完整说明全部展开到首页。")}</p>
         <p class="summary-copy">${escapeHtml(session.plan?.summary || "当前还没有可展示的计划摘要。")}</p>
       </section>
@@ -540,7 +540,7 @@ function renderStartSessionPanel() {
     }
   ];
 
-  elements.startSessionPanel.className = "panel";
+  elements.startSessionPanel.className = "panel ui-panel";
   elements.startSessionPanel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -554,19 +554,19 @@ function renderStartSessionPanel() {
     </div>
 
     <div class="launch-step-grid">
-      <article class="launch-step-card">
+      <article class="launch-step-card ui-card">
         <p class="card-kicker">Step 01</p>
         <h3>确认模板</h3>
         <strong>${escapeHtml(templateName || "未命名模板")}</strong>
         <p>${escapeHtml(summaryParts.join(" / ") || "待补充岗位方向与面试官角色")}</p>
       </article>
-      <article class="launch-step-card">
+      <article class="launch-step-card ui-card">
         <p class="card-kicker">Step 02</p>
         <h3>检查完成度</h3>
         <strong>${escapeHtml(`${readiness.completedCount}/${readiness.totalCount}`)}</strong>
         <p>${escapeHtml(hasLaunchReadyTemplate ? "模板内容基本齐全，可以作为正式启动配置。" : "模板还不够完整，建议先回模板页完善。")}</p>
       </article>
-      <article class="launch-step-card current">
+      <article class="launch-step-card ui-card current">
         <p class="card-kicker">Step 03</p>
         <h3>发起会话</h3>
         <strong>${escapeHtml(candidate.ready ? "预检已具备" : "等待预检通过")}</strong>
@@ -576,7 +576,7 @@ function renderStartSessionPanel() {
 
     <div class="launch-preflight-grid">
       ${preflightItems.map((item) => `
-        <article class="launch-preflight-card">
+        <article class="launch-preflight-card ui-card">
           <p class="card-kicker">${escapeHtml(item.title)}</p>
           <h3>${escapeHtml(item.ready ? "已就绪" : "待补充")}</h3>
           <p>${escapeHtml(item.description)}</p>
@@ -584,12 +584,12 @@ function renderStartSessionPanel() {
       `).join("")}
     </div>
 
-    <div class="graph-detail-sections">
-      <section class="graph-detail-section">
+    <div class="graph-detail-sections ui-detail">
+      <section class="graph-detail-section ui-detail-group">
         <p class="detail-label">${renderLabelWithTooltip("当前说明", "使用当前模板里的岗位说明作为本次启动前的快速预览。")}</p>
         <p class="summary-copy">${escapeHtml(truncateText(launchDescription, 110))}</p>
       </section>
-      <section class="graph-detail-section">
+      <section class="graph-detail-section ui-detail-group">
         <p class="detail-label">${renderLabelWithTooltip("启动建议", "这一步只负责预检和启动；如果模板还没补齐，建议先回模板页完善。")}</p>
         <p class="summary-copy">${escapeHtml(hasLaunchReadyTemplate ? "预检通过后即可直接启动。" : "建议先补齐模板，再进入正式面试。")}</p>
       </section>
@@ -609,7 +609,7 @@ function renderSettingsOverviewPanel() {
   const ai = settings.ai || {};
   const embedding = settings.embedding || {};
 
-  elements.settingsOverviewPanel.className = "panel";
+  elements.settingsOverviewPanel.className = "panel ui-panel";
   elements.settingsOverviewPanel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -639,12 +639,12 @@ function renderSettingsOverviewPanel() {
         <strong>${escapeHtml(embedding.model || "未配置")}</strong>
       </div>
     </div>
-    <div class="graph-detail-sections">
-      <section class="graph-detail-section">
+    <div class="graph-detail-sections ui-detail">
+      <section class="graph-detail-section ui-detail-group">
         <p class="detail-label">${renderLabelWithTooltip("配置文件", "设置保存后会直接写入当前运行环境对应的 .env 文件。")}</p>
         <div class="markdown-code">${escapeHtml(settings.envFilePath || "Loading...")}</div>
       </section>
-      <section class="graph-detail-section">
+      <section class="graph-detail-section ui-detail-group">
         <p class="detail-label">${renderLabelWithTooltip("当前口径", "主模型链路当前稳定支持 Moonshot；Embedding 使用兼容 OpenAI 接口的配置方式。")}</p>
         <p class="summary-copy">设置页现在可以直接填写并保存 API Key、模型名和接口地址。</p>
       </section>
@@ -681,9 +681,9 @@ function renderSettingsConfigPanel() {
     ? "正在保存..."
     : (state.appSettingsStatus || "本地设置");
 
-  elements.settingsConfigPanel.className = "settings-stack";
+  elements.settingsConfigPanel.className = "settings-stack ui-form";
   elements.settingsConfigPanel.innerHTML = `
-    <article class="settings-hero-card">
+    <article class="settings-hero-card ui-card">
       <div>
         <p class="eyebrow">Profile</p>
         <h3>把常用配置收进应用内</h3>
@@ -695,7 +695,7 @@ function renderSettingsConfigPanel() {
       </div>
     </article>
 
-    <article class="settings-form-card">
+    <article class="settings-form-card ui-card ui-form-section">
       <div class="settings-card-header">
         <div>
           <p class="eyebrow">Main AI</p>
@@ -703,7 +703,7 @@ function renderSettingsConfigPanel() {
         </div>
         <span class="status-badge neutral">Moonshot</span>
       </div>
-      <div class="settings-form-grid">
+      <div class="settings-form-grid ui-form-grid">
         <label class="field">
           <span>${renderLabelWithTooltip("Provider", "当前主推理链路稳定支持 Moonshot，后续如果接更多 provider 再从这里扩展。")}</span>
           <select id="settings-ai-provider">
@@ -740,7 +740,7 @@ function renderSettingsConfigPanel() {
       </div>
     </article>
 
-    <article class="settings-form-card">
+    <article class="settings-form-card ui-card ui-form-section">
       <div class="settings-card-header">
         <div>
           <p class="eyebrow">Embedding</p>
@@ -748,7 +748,7 @@ function renderSettingsConfigPanel() {
         </div>
         <span class="status-badge neutral">OpenAI Compatible</span>
       </div>
-      <div class="settings-form-grid">
+      <div class="settings-form-grid ui-form-grid">
         <label class="field">
           <span>${renderLabelWithTooltip("Provider", "Embedding 当前按兼容 OpenAI 风格接口来配置，适合接百炼这类兼容端点。")}</span>
           <input id="settings-embedding-provider" type="text" value="${escapeHtml(embedding.provider || "")}" placeholder="openai_compatible" spellcheck="false" />
@@ -1008,7 +1008,7 @@ function buildPlanStageWorkspace(stage, index, stages, session) {
       }).join("")}
     </div>
 
-    <article class="plan-stage-detail-card">
+    <article class="plan-stage-detail-card ui-card ui-detail">
       <header class="graph-detail-header">
         <div>
           <p class="card-kicker">${escapeHtml(topicLabel(stage.category))}</p>
@@ -1043,17 +1043,17 @@ function buildPlanStageWorkspace(stage, index, stages, session) {
       </div>
 
       <div class="plan-stage-detail-grid">
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">${renderLabelWithTooltip("目标", "本阶段希望验证的核心能力、经验范围和面试意图。")}</p>
           <div class="markdown-block">${renderMarkdown(stage.goal, { empty: "暂无阶段目标说明" })}</div>
         </section>
 
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">${renderLabelWithTooltip("提示", "给出提问方向、追问方式或本阶段的操作提醒。")}</p>
           <div class="markdown-block subtle">${renderMarkdown(stage.promptHint, { empty: "暂无提问提示" })}</div>
         </section>
 
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">${renderLabelWithTooltip("主题", "这个阶段重点覆盖的能力主题或项目维度。")}</p>
           <div class="chip-wrap">
             ${targetTopics.length
@@ -1062,7 +1062,7 @@ function buildPlanStageWorkspace(stage, index, stages, session) {
           </div>
         </section>
 
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">${renderLabelWithTooltip("节点", "与当前阶段相关的图谱节点，可用来观察覆盖范围和追问落点。")}</p>
           <div class="chip-wrap">
             ${relatedNodes.length
@@ -1071,7 +1071,7 @@ function buildPlanStageWorkspace(stage, index, stages, session) {
           </div>
         </section>
 
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">${renderLabelWithTooltip("信号", "显示当前阶段状态、活跃线程和本阶段相关的当前问题。")}</p>
           <div class="markdown-block subtle">${renderMarkdown([
             `- 状态：${stageState.label}`,
@@ -1080,7 +1080,7 @@ function buildPlanStageWorkspace(stage, index, stages, session) {
           ].join("\n"))}</div>
         </section>
 
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">${renderLabelWithTooltip("备注", "记录阶段补充说明、人工判断或自动生成的额外摘要。")}</p>
           <div class="markdown-block subtle">${renderMarkdown(stage.notes || stage.summary, { empty: "当前阶段还没有附加备注" })}</div>
         </section>
@@ -1248,7 +1248,7 @@ function renderReportJobCard(job) {
   const status = job?.status || "idle";
 
   return `
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Report Job</p>
       <div class="turn-header">
         <div>
@@ -1308,7 +1308,7 @@ function renderBackgroundJobCard(job) {
   const targetLabel = job?.targetLabel || kindLabel;
 
   return `
-    <article class="report-card background-job-card">
+    <article class="report-card ui-card background-job-card">
       <div class="turn-header">
         <div>
           <p class="card-kicker">${escapeHtml(kindLabel)}</p>
@@ -1359,7 +1359,7 @@ function renderBackgroundJobs() {
     return;
   }
 
-  elements.backgroundJobsPanel.className = "report-grid";
+  elements.backgroundJobsPanel.className = "report-grid ui-list";
   elements.backgroundJobsPanel.innerHTML = jobs.map(renderBackgroundJobCard).join("");
 }
 
@@ -1383,7 +1383,7 @@ function renderObservabilitySourceCard(overview, sessionSummary) {
   const sessionId = sessionSummary?.sessionId || state.session?.id || "";
 
   return `
-    <article class="report-card observability-card">
+    <article class="report-card ui-card observability-card">
       <div class="turn-header">
         <div>
           <p class="card-kicker">Observability</p>
@@ -1426,7 +1426,7 @@ function renderSlowSpanCard(overview) {
   const items = overview?.slowSpans?.items || [];
 
   return `
-    <article class="report-card observability-card">
+    <article class="report-card ui-card observability-card">
       <div class="turn-header">
         <div>
           <p class="card-kicker">Slow Spans</p>
@@ -1460,7 +1460,7 @@ function renderProviderCallCard(overview, sessionSummary) {
   const scopeLabel = sessionSummary?.recentProviderCalls?.length ? "当前 Session" : "最近日志";
 
   return `
-    <article class="report-card observability-card">
+    <article class="report-card ui-card observability-card">
       <div class="turn-header">
         <div>
           <p class="card-kicker">Provider Calls</p>
@@ -1492,7 +1492,7 @@ function renderSessionTimelineCard(sessionSummary) {
   const items = sessionSummary?.timeline || [];
 
   return `
-    <article class="report-card observability-card">
+    <article class="report-card ui-card observability-card">
       <div class="turn-header">
         <div>
           <p class="card-kicker">Session Timeline</p>
@@ -1538,7 +1538,7 @@ function renderObservability() {
 
   if (state.observabilityError) {
     cards.push(`
-      <article class="report-card observability-card observability-error-card">
+      <article class="report-card ui-card observability-card observability-error-card">
         <p class="card-kicker">Observability</p>
         <h3 class="card-title">日志聚合视图暂不可用</h3>
         <div class="markdown-block subtle">${renderMarkdown(state.observabilityError, { empty: "请求失败" })}</div>
@@ -1554,7 +1554,7 @@ function renderObservability() {
 
   cards.push(renderSessionTimelineCard(sessionSummary));
 
-  elements.observabilityPanel.className = "report-grid";
+  elements.observabilityPanel.className = "report-grid ui-list";
   elements.observabilityPanel.innerHTML = cards.join("");
 }
 
@@ -1566,14 +1566,14 @@ function renderReportLegacy() {
     elements.reportPanel.className = "empty-state";
     const reportJobStatus = reportJob?.status;
     if (reportJobStatus === "pending" || reportJobStatus === "running") {
-      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.className = "report-grid ui-list";
       elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
       return;
       elements.reportPanel.textContent = "面试已结束，结构化复盘正在后台生成。";
       return;
     }
     if (reportJobStatus === "failed") {
-      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.className = "report-grid ui-list";
       elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
       return;
       elements.reportPanel.textContent = "复盘生成失败，请稍后刷新重试。";
@@ -1584,13 +1584,13 @@ function renderReportLegacy() {
   }
 
   const report = state.session.report;
-  elements.reportPanel.className = "report-grid";
+  elements.reportPanel.className = "report-grid ui-list";
   elements.reportPanel.innerHTML = `
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Summary</p>
       <div class="markdown-block">${renderMarkdown(report.summary)}</div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Coverage</p>
       <div class="metric-grid compact">
         <div class="metric-tile">
@@ -1614,7 +1614,7 @@ function renderReportLegacy() {
         ? `<div class="markdown-block subtle">${renderMarkdown(report.coverageSummary.summary)}</div>`
         : ""}
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Dimensions</p>
       <div class="report-dimensions">
         ${(report.dimensions || []).length
@@ -1627,7 +1627,7 @@ function renderReportLegacy() {
           : '<p class="muted">暂无维度评分。</p>'}
       </div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Strengths</p>
       <ul class="supporting-list">
         ${(report.strengths || []).length
@@ -1635,7 +1635,7 @@ function renderReportLegacy() {
           : '<li class="muted">暂无</li>'}
       </ul>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Risks</p>
       <ul class="supporting-list">
         ${(report.risks || []).length
@@ -1643,12 +1643,12 @@ function renderReportLegacy() {
           : '<li class="muted">暂无</li>'}
       </ul>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Topic Coverage</p>
-      <div class="graph-detail-sections">
+      <div class="graph-detail-sections ui-detail">
         ${(report.topicCoverage || []).length
           ? report.topicCoverage.map((item) => `
-              <section class="graph-detail-section">
+              <section class="graph-detail-section ui-detail-group">
                 <div class="turn-header">
                   <div>
                     <p class="card-kicker">${escapeHtml(topicLabel(item.category))}</p>
@@ -1671,12 +1671,12 @@ function renderReportLegacy() {
           : '<p class="muted">暂无主题覆盖摘要。</p>'}
       </div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Evidence Highlights</p>
-      <div class="graph-detail-sections">
+      <div class="graph-detail-sections ui-detail">
         ${(report.evidenceHighlights || []).length
           ? report.evidenceHighlights.map((item) => `
-              <section class="graph-detail-section">
+              <section class="graph-detail-section ui-detail-group">
                 <div class="turn-meta emphasis">
                   <span>${escapeHtml(item.topicLabel || "未命名主题")}</span>
                   <span>${escapeHtml(item.evidenceSource || "暂无证据来源")}</span>
@@ -1700,12 +1700,12 @@ function renderReport() {
     elements.reportPanel.className = "empty-state";
     const reportJobStatus = reportJob?.status;
     if (reportJobStatus === "pending" || reportJobStatus === "running") {
-      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.className = "report-grid ui-list";
       elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
       return;
     }
     if (reportJobStatus === "failed") {
-      elements.reportPanel.className = "report-grid";
+      elements.reportPanel.className = "report-grid ui-list";
       elements.reportPanel.innerHTML = renderReportJobCard(reportJob);
       return;
     }
@@ -1715,13 +1715,13 @@ function renderReport() {
   }
 
   const report = state.session.report;
-  elements.reportPanel.className = "report-grid";
+  elements.reportPanel.className = "report-grid ui-list";
   elements.reportPanel.innerHTML = `
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Summary</p>
       <div class="markdown-block">${renderMarkdown(report.summary)}</div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Coverage</p>
       <div class="metric-grid compact">
         <div class="metric-tile">
@@ -1745,7 +1745,7 @@ function renderReport() {
         ? `<div class="markdown-block subtle">${renderMarkdown(report.coverageSummary.summary)}</div>`
         : ""}
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Dimensions</p>
       <div class="report-dimensions">
         ${(report.dimensions || []).length
@@ -1758,7 +1758,7 @@ function renderReport() {
           : '<p class="muted">暂无维度评分。</p>'}
       </div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Strengths</p>
       <ul class="supporting-list">
         ${(report.strengths || []).length
@@ -1766,7 +1766,7 @@ function renderReport() {
           : '<li class="muted">暂无</li>'}
       </ul>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Risks</p>
       <ul class="supporting-list">
         ${(report.risks || []).length
@@ -1774,12 +1774,12 @@ function renderReport() {
           : '<li class="muted">暂无</li>'}
       </ul>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Topic Coverage</p>
-      <div class="graph-detail-sections">
+      <div class="graph-detail-sections ui-detail">
         ${(report.topicCoverage || []).length
           ? report.topicCoverage.map((item) => `
-              <section class="graph-detail-section">
+              <section class="graph-detail-section ui-detail-group">
                 <div class="turn-header">
                   <div>
                     <p class="card-kicker">${escapeHtml(topicLabel(item.category))}</p>
@@ -1802,12 +1802,12 @@ function renderReport() {
           : '<p class="muted">暂无主题覆盖摘要。</p>'}
       </div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Evidence Highlights</p>
-      <div class="graph-detail-sections">
+      <div class="graph-detail-sections ui-detail">
         ${(report.evidenceHighlights || []).length
           ? report.evidenceHighlights.map((item) => `
-              <section class="graph-detail-section">
+              <section class="graph-detail-section ui-detail-group">
                 <div class="turn-meta emphasis">
                   <span>${escapeHtml(item.topicLabel || "未命名主题")}</span>
                   <span>${escapeHtml(item.evidenceSource || "暂无证据来源")}</span>
@@ -1869,7 +1869,7 @@ function buildObservabilityPanelModel() {
 
 function renderObservabilityPanelCard({ kicker, title, countLabel, items, emptyText, buildRow }) {
   return `
-    <article class="report-card observability-card compact">
+    <article class="report-card ui-card observability-card compact">
       <div class="observability-card-header">
         <div>
           <p class="card-kicker">${escapeHtml(kicker)}</p>
@@ -1960,7 +1960,7 @@ function renderObservabilityPanel() {
 
   const errorCard = state.observabilityError
     ? `
-      <article class="report-card observability-card observability-error-card">
+      <article class="report-card ui-card observability-card observability-error-card">
         <p class="card-kicker">Observability</p>
         <h3 class="card-title">日志聚合视图暂不可用</h3>
         <div class="markdown-block subtle">${renderMarkdown(state.observabilityError, { empty: "请求失败" })}</div>
@@ -1968,7 +1968,7 @@ function renderObservabilityPanel() {
     `
     : "";
 
-  elements.observabilityPanel.className = "observability-shell";
+  elements.observabilityPanel.className = "observability-shell ui-panel";
   elements.observabilityPanel.innerHTML = `
     <div class="observability-toolbar">
       <div>
@@ -2053,9 +2053,9 @@ function renderDesktopRuntimePanel() {
     ["导出", counts.exportEntries]
   ];
 
-  elements.desktopRuntimePanel.className = "report-grid";
+  elements.desktopRuntimePanel.className = "report-grid ui-list";
   elements.desktopRuntimePanel.innerHTML = `
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Runtime</p>
       <div class="metric-grid compact">
         <div class="metric-tile">
@@ -2067,12 +2067,12 @@ function renderDesktopRuntimePanel() {
           <strong>${escapeHtml(runtime.desktopDatabaseMode || "managed")}</strong>
         </div>
       </div>
-      <div class="graph-detail-sections">
-        <section class="graph-detail-section">
+      <div class="graph-detail-sections ui-detail">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">数据目录</p>
           <div class="markdown-code">${escapeHtml(runtime.dataDir || "")}</div>
         </section>
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">关键路径</p>
           <div class="turn-meta">
             <span>logs: ${escapeHtml(runtime.paths?.logsDir || "")}</span>
@@ -2082,7 +2082,7 @@ function renderDesktopRuntimePanel() {
         </section>
       </div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Usage</p>
       <div class="metric-grid compact">
         ${metricItems.map(([label, count]) => `
@@ -2093,7 +2093,7 @@ function renderDesktopRuntimePanel() {
         `).join("")}
       </div>
     </article>
-    <article class="report-card">
+    <article class="report-card ui-card">
       <p class="card-kicker">Cleanup</p>
       <div class="desktop-cleanup-grid">
         ${cleanupTargets.map((target) => `
@@ -2107,9 +2107,9 @@ function renderDesktopRuntimePanel() {
           </button>
         `).join("")}
       </div>
-      <div class="graph-detail-sections">
+      <div class="graph-detail-sections ui-detail">
         ${cleanupTargets.map((target) => `
-          <section class="graph-detail-section">
+          <section class="graph-detail-section ui-detail-group">
             <div class="turn-meta">
               <span>${escapeHtml(target.label)}</span>
               <span>${escapeHtml(target.path)}</span>
@@ -2119,7 +2119,7 @@ function renderDesktopRuntimePanel() {
         `).join("")}
       </div>
     </article>
-    <article class="report-card desktop-danger-card">
+    <article class="report-card ui-card desktop-danger-card">
       <p class="card-kicker">Danger Zone</p>
       <div class="turn-header">
         <div>
@@ -2132,14 +2132,14 @@ function renderDesktopRuntimePanel() {
           ${fullReset?.pending ? renderPill("等待重启生效", "accent") : renderPill("危险操作")}
         </div>
       </div>
-      <div class="graph-detail-sections">
-        <section class="graph-detail-section">
+      <div class="graph-detail-sections ui-detail">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">将被清理的数据</p>
           <div class="markdown-block subtle">
             ${renderMarkdown("- PostgreSQL 本地数据\n- 题库与复习资产\n- 日志、导出、缓存与本地配置")}
           </div>
         </section>
-        <section class="graph-detail-section">
+        <section class="graph-detail-section ui-detail-group">
           <p class="detail-label">当前状态</p>
           <div class="turn-meta">
             <span>${escapeHtml(fullReset?.pending ? "已写入重置标记" : "未计划重置")}</span>

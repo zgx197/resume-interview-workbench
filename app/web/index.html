@@ -71,7 +71,7 @@
       </aside>
 
       <div class="app-main">
-        <header class="panel app-topbar">
+        <header class="panel ui-panel app-topbar">
           <div class="topbar-copy">
             <p id="view-eyebrow" class="eyebrow">Overview</p>
             <h2 id="view-title">工作台</h2>
@@ -87,7 +87,7 @@
             <div class="dashboard-grid">
               <div id="dashboard-overview-panel"></div>
               <div id="dashboard-session-panel"></div>
-              <section class="panel topic-panel">
+              <section class="panel ui-panel topic-panel">
                 <div class="panel-header">
                   <div>
                     <p class="eyebrow">Topics</p>
@@ -130,29 +130,29 @@
                       <h2>启动路径</h2>
                     </div>
                   </div>
-                  <div class="start-route-list">
-                    <article class="start-route-item">
+                  <div class="start-route-list ui-list">
+                    <article class="start-route-item ui-list-item">
                       <div class="start-route-item-head">
                         <strong>01 模板列表</strong>
                         <span class="tooltip-trigger" tabindex="0" role="note" title="先从模板资产中心挑选一份可用模板。" data-tooltip="先从模板资产中心挑选一份可用模板。" aria-label="先从模板资产中心挑选一份可用模板。">?</span>
                       </div>
                       <p>先选模板</p>
                     </article>
-                    <article class="start-route-item">
+                    <article class="start-route-item ui-list-item">
                       <div class="start-route-item-head">
                         <strong>02 模板编辑</strong>
                         <span class="tooltip-trigger" tabindex="0" role="note" title="补齐基础信息、说明内容与高级配置。" data-tooltip="补齐基础信息、说明内容与高级配置。" aria-label="补齐基础信息、说明内容与高级配置。">?</span>
                       </div>
                       <p>补全模板信息</p>
                     </article>
-                    <article class="start-route-item is-current">
+                    <article class="start-route-item ui-list-item is-current">
                       <div class="start-route-item-head">
                         <strong>03 启动页</strong>
                         <span class="tooltip-trigger" tabindex="0" role="note" title="在这里完成预检、确认配置并正式发起会话。" data-tooltip="在这里完成预检、确认配置并正式发起会话。" aria-label="在这里完成预检、确认配置并正式发起会话。">?</span>
                       </div>
                       <p>完成预检后启动</p>
                     </article>
-                    <article class="start-route-item">
+                    <article class="start-route-item ui-list-item">
                       <div class="start-route-item-head">
                         <strong>04 会话页</strong>
                         <span class="tooltip-trigger" tabindex="0" role="note" title="进入正式面试，对话、计划和图谱都会在会话页展开。" data-tooltip="进入正式面试，对话、计划和图谱都会在会话页展开。" aria-label="进入正式面试，对话、计划和图谱都会在会话页展开。">?</span>
@@ -212,7 +212,7 @@
                 </label>
               </section>
 
-              <section id="template-library-detail-panel" class="panel template-library-detail-panel">
+              <section id="template-library-detail-panel" class="panel ui-panel template-library-detail-panel">
                 选择左侧模板后，这里会显示模板概览与下一步操作。
               </section>
             </div>
@@ -234,7 +234,7 @@
 
                 <div id="template-meta" class="template-meta empty-state">保存模板后，这里会显示最近使用与最后更新时间。</div>
 
-                <section class="template-edit-section">
+                <section class="template-edit-section ui-card ui-form-section">
                   <div class="template-edit-section-header">
                     <div class="section-heading-row">
                       <div>
@@ -245,7 +245,7 @@
                     </div>
                     <p class="section-hint">先填必要字段</p>
                   </div>
-                  <div class="wizard-block">
+                  <div class="wizard-block ui-form">
                     <label class="field">
                       <span>模板名称</span>
                       <input id="template-name-input" type="text" placeholder="例如：客户端开发岗位技术面试" />
@@ -270,7 +270,7 @@
                   </div>
                 </section>
 
-                <section class="template-edit-section">
+                <section class="template-edit-section ui-card ui-form-section">
                   <div class="template-edit-section-header">
                     <div class="section-heading-row">
                       <div>
@@ -281,7 +281,7 @@
                     </div>
                     <p class="section-hint">补充面试语境</p>
                   </div>
-                  <div class="wizard-block">
+                  <div class="wizard-block ui-form">
                     <label class="field">
                       <span>公司介绍</span>
                       <textarea id="company-intro-input" rows="3" placeholder="简要说明团队背景、业务方向、当前阶段与协作方式。"></textarea>
@@ -299,7 +299,7 @@
                   </div>
                 </section>
 
-                <section class="template-edit-section template-edit-section-advanced">
+                <section class="template-edit-section template-edit-section-advanced ui-card ui-form-section">
                   <div class="template-edit-section-header">
                     <div class="section-heading-row">
                       <div>
@@ -324,27 +324,27 @@
               </section>
 
               <aside class="template-editor-rail">
-                <section id="template-editor-summary-panel" class="panel template-editor-summary-panel empty-state">
+                <section id="template-editor-summary-panel" class="panel ui-panel template-editor-summary-panel empty-state">
                   模板工作台摘要加载中...
                 </section>
 
-                <section class="panel template-editor-map-panel">
+                <section class="panel ui-panel template-editor-map-panel">
                   <div class="panel-header">
                     <div>
                       <p class="eyebrow">Sections</p>
                       <h2>编辑结构</h2>
                     </div>
                   </div>
-                  <div class="template-editor-map-list">
-                    <article class="template-editor-map-item">
+                  <div class="template-editor-map-list ui-list">
+                    <article class="template-editor-map-item ui-list-item">
                       <strong>01 基础信息</strong>
                       <p>名称、岗位方向、公司语境、面试官角色。</p>
                     </article>
-                    <article class="template-editor-map-item">
+                    <article class="template-editor-map-item ui-list-item">
                       <strong>02 说明内容</strong>
                       <p>团队背景、岗位说明、补充约束与追问偏好。</p>
                     </article>
-                    <article class="template-editor-map-item">
+                    <article class="template-editor-map-item ui-list-item">
                       <strong>03 高级配置</strong>
                       <p>模板所依赖的角色基座与能力方向基座。</p>
                     </article>
@@ -437,7 +437,7 @@
                         </div>
                         <span id="run-status" class="run-status">idle</span>
                       </div>
-                      <div id="graph-detail" class="graph-detail empty-state">这里会展示当前问题和活跃节点的重点信息。</div>
+                      <div id="graph-detail" class="graph-detail ui-detail empty-state">这里会展示当前问题和活跃节点的重点信息。</div>
                     </section>
                   </aside>
                 </div>
@@ -456,7 +456,7 @@
                     <div id="run-graph" class="run-graph empty-state">开始面试后，这里会显示当前回合的状态图。</div>
                   </section>
 
-                  <section class="panel planning-detail-panel">
+                  <section class="panel ui-panel planning-detail-panel">
                       <div class="panel-header">
                         <div>
                           <p class="eyebrow">Plan</p>
@@ -473,7 +473,7 @@
 
               <section class="session-workspace-section is-hidden" data-session-workspace-section="review">
                 <div class="session-review-layout">
-                  <section class="panel">
+                  <section class="panel ui-panel">
                     <div class="panel-header">
                       <div>
                         <p class="eyebrow">Report</p>
@@ -483,7 +483,7 @@
                     <div id="report-panel" class="empty-state">完成面试后，这里会显示结构化复盘。</div>
                   </section>
 
-                  <section class="panel">
+                  <section class="panel ui-panel">
                     <div class="panel-header">
                       <div>
                         <p class="eyebrow">Jobs</p>
@@ -493,7 +493,7 @@
                     <div id="background-jobs-panel" class="empty-state">开始面试后，这里会统一显示冷路径任务状态。</div>
                   </section>
 
-                  <section class="panel">
+                  <section class="panel ui-panel">
                     <div class="panel-header">
                       <div>
                         <p class="eyebrow">Observability</p>
@@ -508,34 +508,132 @@
           </section>
 
           <section class="app-view is-hidden" data-view-section="review">
-            <section class="panel placeholder-panel">
-              <p class="eyebrow">Review</p>
-              <h2>复习中心即将接入</h2>
-              <p class="hero-subtitle">下一步会把 review items、review sets 和 attempts 正式产品化。</p>
-              <div class="quick-action-row">
-                <button type="button" class="secondary-button" data-nav-view="dashboard">回到工作台</button>
-                <button type="button" class="secondary-button" data-nav-view="session">查看当前会话</button>
-              </div>
-            </section>
+            <div class="placeholder-page-layout">
+              <section class="panel ui-panel placeholder-panel">
+                <div class="placeholder-hero">
+                  <p class="eyebrow">Review</p>
+                  <h2>复习中心</h2>
+                  <p class="hero-subtitle">把弱项条目、复习集合、练习记录和推荐动作收成一条连续工作流，而不是继续散落在会话页里。</p>
+                </div>
+                <div class="placeholder-stat-grid">
+                  <article class="ui-card">
+                    <p class="card-kicker">Items</p>
+                    <h3 class="card-title">弱项条目</h3>
+                    <p class="summary-copy">沉淀来源题目、失败原因、证据摘要和当前掌握状态。</p>
+                  </article>
+                  <article class="ui-card">
+                    <p class="card-kicker">Sets</p>
+                    <h3 class="card-title">复习集合</h3>
+                    <p class="summary-copy">把同主题、同岗位或同失败模式收成可重复训练的集合。</p>
+                  </article>
+                  <article class="ui-card">
+                    <p class="card-kicker">Attempts</p>
+                    <h3 class="card-title">练习记录</h3>
+                    <p class="summary-copy">记录每次补练、得分变化和是否已经真正掌握。</p>
+                  </article>
+                </div>
+                <div class="quick-action-row placeholder-actions">
+                  <button type="button" class="secondary-button" data-nav-view="dashboard">回到工作台</button>
+                  <button type="button" class="secondary-button" data-nav-view="session">查看当前会话</button>
+                </div>
+              </section>
+
+              <aside class="placeholder-page-rail">
+                <section class="panel ui-panel">
+                  <div class="panel-header">
+                    <div>
+                      <p class="eyebrow">Roadmap</p>
+                      <h2>下一步落地</h2>
+                    </div>
+                  </div>
+                  <div class="ui-list placeholder-page-list">
+                    <article class="ui-list-item">
+                      <p class="card-kicker">Phase 01</p>
+                      <h3 class="card-title">Review Item 列表页</h3>
+                      <p class="summary-copy">按优先级、主题和状态筛选待补的能力缺口。</p>
+                    </article>
+                    <article class="ui-list-item">
+                      <p class="card-kicker">Phase 02</p>
+                      <h3 class="card-title">Attempt 详情页</h3>
+                      <p class="summary-copy">进入单条弱项后，查看历史练习和推荐动作。</p>
+                    </article>
+                    <article class="ui-list-item">
+                      <p class="card-kicker">Phase 03</p>
+                      <h3 class="card-title">Review Set 工作台</h3>
+                      <p class="summary-copy">把多个弱项整成一轮完整的补练路线。</p>
+                    </article>
+                  </div>
+                </section>
+              </aside>
+            </div>
           </section>
 
           <section class="app-view is-hidden" data-view-section="knowledge">
-            <section class="panel placeholder-panel">
-              <p class="eyebrow">Knowledge</p>
-              <h2>知识库页面即将接入</h2>
-              <p class="hero-subtitle">后续会把题库、知识文档、相似召回与 usage stats 统一收到这一层。</p>
-              <div class="quick-action-row">
-                <button type="button" class="secondary-button" data-nav-view="templates">打开模板列表</button>
-                <button type="button" class="secondary-button" data-nav-view="settings">查看设置</button>
-              </div>
-            </section>
+            <div class="placeholder-page-layout">
+              <section class="panel ui-panel placeholder-panel">
+                <div class="placeholder-hero">
+                  <p class="eyebrow">Knowledge</p>
+                  <h2>知识资产中心</h2>
+                  <p class="hero-subtitle">把题库、知识文档、相似召回和使用统计统一到资产层，而不是继续散在模板、会话和服务逻辑里。</p>
+                </div>
+                <div class="placeholder-stat-grid">
+                  <article class="ui-card">
+                    <p class="card-kicker">Question Bank</p>
+                    <h3 class="card-title">题目资产</h3>
+                    <p class="summary-copy">管理题目本体、变体、标签、来源和使用表现。</p>
+                  </article>
+                  <article class="ui-card">
+                    <p class="card-kicker">Documents</p>
+                    <h3 class="card-title">语义文档</h3>
+                    <p class="summary-copy">沉淀模板说明、复盘证据、项目片段和 review item 摘要。</p>
+                  </article>
+                  <article class="ui-card">
+                    <p class="card-kicker">Retrieval</p>
+                    <h3 class="card-title">检索策略</h3>
+                    <p class="summary-copy">统一组合结构化过滤、向量召回和规则重排。</p>
+                  </article>
+                </div>
+                <div class="quick-action-row placeholder-actions">
+                  <button type="button" class="secondary-button" data-nav-view="templates">打开模板列表</button>
+                  <button type="button" class="secondary-button" data-nav-view="settings">查看设置</button>
+                </div>
+              </section>
+
+              <aside class="placeholder-page-rail">
+                <section class="panel ui-panel">
+                  <div class="panel-header">
+                    <div>
+                      <p class="eyebrow">Roadmap</p>
+                      <h2>建设顺序</h2>
+                    </div>
+                  </div>
+                  <div class="ui-list placeholder-page-list">
+                    <article class="ui-list-item">
+                      <p class="card-kicker">Phase 01</p>
+                      <h3 class="card-title">题库列表与筛选</h3>
+                      <p class="summary-copy">先把 QuestionRepository 里的资产正式可视化。</p>
+                    </article>
+                    <article class="ui-list-item">
+                      <p class="card-kicker">Phase 02</p>
+                      <h3 class="card-title">知识文档详情页</h3>
+                      <p class="summary-copy">按文档类型观察 embedding、来源和更新时间。</p>
+                    </article>
+                    <article class="ui-list-item">
+                      <p class="card-kicker">Phase 03</p>
+                      <h3 class="card-title">召回调试视图</h3>
+                      <p class="summary-copy">直接看到 filter、召回候选和重排结果，方便调优。</p>
+                    </article>
+                  </div>
+                </section>
+              </aside>
+            </div>
           </section>
 
           <section class="app-view is-hidden" data-view-section="settings">
             <div class="settings-grid">
               <div id="settings-overview-panel"></div>
 
-              <section class="panel settings-config-shell">
+              <section class="panel ui-panel settings-config-shell">
                 <div class="panel-header">
                   <div>
                     <p class="eyebrow">Configuration</p>
@@ -545,7 +643,7 @@
                 <div id="settings-config-panel" class="empty-state">Loading settings...</div>
               </section>
 
-              <section class="panel settings-runtime-shell">
+              <section class="panel ui-panel settings-runtime-shell">
                 <div class="panel-header">
                   <div>
                     <p class="eyebrow">Desktop</p>
