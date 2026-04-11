@@ -1,5 +1,68 @@
 # UI 重构方案文档
 
+## UI Foundation / 统一设计基座
+
+为了避免页面越做越散，当前 Web 调试工具需要先建立一套统一的 UI Foundation，而不是继续按页面各自定义字号、间距和卡片样式。
+
+这一层的目标是：
+
+- 让标题、正文、说明文字拥有固定层级，像 Markdown 一样可预期
+- 让卡片、按钮、输入框、标签、状态徽标使用统一尺寸和圆角
+- 让新页面默认继承同一套色彩、阴影、间距和动效，不再“每页一套”
+
+### 统一令牌分层
+
+建议整个前端样式按 4 层组织：
+
+1. Design Tokens  
+   颜色、字体、字号、行高、间距、圆角、阴影、动效时长
+2. Typography Scale  
+   `display / title-1 / title-2 / title-3 / body / body-sm / caption / micro`
+3. Semantic Components  
+   `panel / card / button / field / badge / tooltip / overlay`
+4. Page Layout  
+   页面级编排，只组合基础能力，不重新定义视觉语言
+
+### 统一文字层级
+
+建议把页面中的文字统一映射到下面这组语义层级：
+
+- `display`
+  页面主标题、Hero 标题、品牌标题
+- `title-1`
+  抽屉标题、模态标题、一级详情标题
+- `title-2`
+  面板标题、模块标题、页面内分区标题
+- `title-3`
+  卡片标题、列表项标题、关键对象名称
+- `body`
+  正文、段落、表单说明、运行态描述
+- `body-sm`
+  次级说明、摘要、辅助提示
+- `caption`
+  Eyebrow、字段标签、指标标签、阶段编号
+- `micro`
+  标签内小字、元信息、工具提示内短说明
+
+### 统一组件基线
+
+建议统一遵守以下口径：
+
+- 输入框和主要按钮默认高度一致
+- 卡片与 Panel 默认使用同一组圆角和阴影
+- 状态徽标只允许成功 / 中性 / 风险三种语义色
+- Tooltip 统一使用同一套触发尺寸、背景、圆角和文字大小
+- 页面主间距、卡片内边距、表单栅格间距全部走 spacing token
+
+### 当前落地约定
+
+当前代码已经开始把这套基座沉到 `app/web/styles.css` 的 `:root` 变量中，后续新增页面或组件应优先复用这些变量，而不是直接写新的硬编码值。
+
+后续如果继续推进，可以再补两件事：
+
+- 已补充独立文档：[UI Token Reference](./ui-token-reference.md)
+- 已建立 `panel / card / form / list / detail` 标准骨架，并开始逐页接入
+
 ## 1. 文档目的
 
 本文档用于为 `resume-interview-workbench` 制定一套更产品化的 UI 重构方案。
