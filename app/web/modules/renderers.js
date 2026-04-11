@@ -9,16 +9,27 @@ import {
   topicNodeStatusLabel
 } from "./presenters.js";
 import { state } from "./state.js";
-import { createBlankTemplate, fillTemplateForm, renderTemplatePicker, sortTemplates } from "./templates.js";
 import {
-  escapeHtml,
+  buildTemplateDraft,
+  buildTemplateSectionStatus,
+  createBlankTemplate,
+  deriveTemplateName,
+  fillTemplateForm,
+  findTemplateById,
+  isCurrentTemplateSaved,
+  renderTemplatePicker,
+  sortTemplates
+} from "./templates.js";
+import {  escapeHtml,
   formatDateTime,
   formatDuration,
   getLivePhaseDuration,
+  renderLabelWithTooltip,
   renderMarkdown,
   renderPill,
   truncateText
 } from "./utils.js";
+import { APP_VIEW_META, isNavViewActive } from "./views.js";
 
 const BACKGROUND_JOB_STATUS_LABELS = {
   pending: "排队中",
@@ -26,6 +37,24 @@ const BACKGROUND_JOB_STATUS_LABELS = {
   failed: "已失败",
   completed: "已完成",
   idle: "未启动"
+};
+
+const APP_OVERLAY_META = {
+  planning: {
+    eyebrow: "Planning",
+    title: "计划图谱工作区",
+    description: "集中查看图谱、阶段推进和当前提问焦点。"
+  },
+  review: {
+    eyebrow: "Review",
+    title: "复盘观察工作区",
+    description: "把复盘、任务和运行观测收进独立侧栏。",
+    tabs: [
+      { id: "report", label: "复盘" },
+      { id: "jobs", label: "任务" },
+      { id: "observability", label: "观测" }
+    ]
+  }
 };
 
 const BACKGROUND_JOB_KIND_LABELS = {
@@ -47,8 +76,21 @@ const BACKGROUND_JOB_STATUS_PRIORITY = {
   completed: 4
 };
 
-// renderers.js 负责所有面向产品界面的 DOM 输出。
-// 故意把写 DOM 的动作集中起来，保证 session 更新行为可预期。
+const SESSION_WORKSPACE_META = {
+  realtime: {
+    label: "实时对话",
+    description: "查看当前问题、历史轮次与答题输入。"
+  },
+  planning: {
+    label: "计划图谱",
+    description: "从图谱里看阶段推进和提问策略。"
+  },
+  review: {
+    label: "复盘观察",
+    description: "查看复盘、任务与观测结果。"
+  }
+};
+
 function updateShellSummary() {
   if (elements.candidateYears) {
     const years = state.bootstrap?.candidate?.profile?.estimatedYearsExperience;
@@ -63,10 +105,698 @@ function updateShellSummary() {
     elements.sessionMode.textContent = buildSessionModeLabel(state.session);
   }
 
+  if (elements.navSessionMode) {
+    elements.navSessionMode.textContent = buildSessionModeLabel(state.session);
+  }
+
   if (elements.activeThread) {
     const thread = findCurrentThread(state.session);
     elements.activeThread.textContent = thread?.label || "等待线程";
   }
+
+  if (elements.navActiveThread) {
+    const thread = findCurrentThread(state.session);
+    elements.navActiveThread.textContent = thread?.label || "等待线程";
+  }
+}
+
+function renderNavigation() {
+  for (const button of elements.navButtons || []) {
+    const isActive = isNavViewActive(button.dataset.navView, state.currentView);
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-current", isActive ? "page" : "false");
+  }
+}
+
+function renderActiveView() {
+  for (const section of elements.viewSections || []) {
+    const isActive = section.dataset.viewSection === state.currentView;
+    section.classList.toggle("is-hidden", !isActive);
+  }
+}
+
+function renderSessionWorkspaceChrome() {
+  const activeWorkspace = state.currentSessionWorkspace || "realtime";
+
+  for (const button of elements.sessionWorkspaceButtons || []) {
+    const isActive = button.dataset.sessionWorkspace === activeWorkspace;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-current", isActive ? "page" : "false");
+  }
+
+  for (const section of elements.sessionWorkspaceSections || []) {
+    const isActive = section.dataset.sessionWorkspaceSection === activeWorkspace;
+    section.classList.toggle("is-hidden", !isActive);
+  }
+}
+
+function buildOverlayPanelSnapshot(element, fallbackText) {
+  const html = element?.innerHTML?.trim();
+  const className = element?.className || "empty-state";
+  if (html) {
+    return `<div class="${className}">${html}</div>`;
+  }
+
+  return `<div class="${className}">${escapeHtml(element?.textContent || fallbackText)}</div>`;
+}
+
+function buildOverlaySessionSummary() {
+  if (!state.session) {
+    return `
+      <article class="panel modal-panel overlay-summary-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Session</p>
+            <h3>当前没有活动会话</h3>
+          </div>
+        </div>
+        <div class="panel-body">
+          <p class="summary-copy">开始面试后，这里会给出当前阶段、线程和覆盖进度摘要。</p>
+        </div>
+      </article>
+    `;
+  }
+
+  const stage = state.session.plan?.stages?.[state.session.stageIndex];
+  const thread = findCurrentThread(state.session);
+  const backgroundJobs = state.session.backgroundJobs || [];
+
+  return `
+    <article class="panel modal-panel overlay-summary-panel">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Session</p>
+          <h3>当前会话摘要</h3>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="metric-grid compact">
+          <div class="metric-tile accent">
+            <span class="metric-label">状态</span>
+            <strong>${escapeHtml(sessionStatusLabel(state.session.status))}</strong>
+          </div>
+          <div class="metric-tile">
+            <span class="metric-label">轮次</span>
+            <strong>${escapeHtml(`${state.session.turns.length} / ${state.session.plan?.targetTurnCount || 0}`)}</strong>
+          </div>
+          <div class="metric-tile">
+            <span class="metric-label">阶段</span>
+            <strong>${escapeHtml(stage?.title || "待规划")}</strong>
+          </div>
+          <div class="metric-tile">
+            <span class="metric-label">线程</span>
+            <strong>${escapeHtml(thread?.label || "等待线程")}</strong>
+          </div>
+          <div class="metric-tile">
+            <span class="metric-label">后台任务</span>
+            <strong>${escapeHtml(backgroundJobs.length || 0)}</strong>
+          </div>
+          <div class="metric-tile">
+            <span class="metric-label">报告</span>
+            <strong>${escapeHtml(state.session.report ? "已生成" : "待生成")}</strong>
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderAppOverlay() {
+  if (!elements.overlayRoot || !elements.overlayBody) {
+    return;
+  }
+
+  const overlayMeta = APP_OVERLAY_META[state.currentOverlay] || null;
+  if (!overlayMeta || state.currentView !== "session") {
+    elements.overlayRoot.hidden = true;
+    elements.overlayRoot.classList.remove("is-open");
+    elements.overlayRoot.setAttribute("aria-hidden", "true");
+    elements.overlayBody.innerHTML = "";
+    elements.overlayTabs.hidden = true;
+    elements.overlayTabs.innerHTML = "";
+    document.body.classList.remove("is-modal-open");
+    return;
+  }
+
+  elements.overlayRoot.hidden = false;
+  elements.overlayRoot.classList.add("is-open");
+  elements.overlayRoot.setAttribute("aria-hidden", "false");
+  elements.overlayEyebrow.textContent = overlayMeta.eyebrow;
+  elements.overlayTitle.textContent = overlayMeta.title;
+  elements.overlayDescription.textContent = overlayMeta.description;
+  document.body.classList.add("is-modal-open");
+
+  if (overlayMeta.tabs?.length) {
+    const activeTab = overlayMeta.tabs.some((tab) => tab.id === state.currentOverlayTab)
+      ? state.currentOverlayTab
+      : overlayMeta.tabs[0].id;
+    state.currentOverlayTab = activeTab;
+    elements.overlayTabs.hidden = false;
+    elements.overlayTabs.innerHTML = overlayMeta.tabs.map((tab) => `
+      <button
+        type="button"
+        class="segment-tab ${tab.id === activeTab ? "is-active" : ""}"
+        data-overlay-tab="${tab.id}"
+      >
+        ${escapeHtml(tab.label)}
+      </button>
+    `).join("");
+  } else {
+    state.currentOverlayTab = "";
+    elements.overlayTabs.hidden = true;
+    elements.overlayTabs.innerHTML = "";
+  }
+
+  if (state.currentOverlay === "planning") {
+    elements.overlayBody.innerHTML = `
+      <div class="modal-grid app-overlay-grid planning-overlay-grid">
+        <div class="modal-column">
+          <article class="panel modal-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Graph</p>
+                <h3>计划图谱</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              ${buildOverlayPanelSnapshot(elements.runGraph, "计划图谱加载中...")}
+            </div>
+          </article>
+          <article class="panel modal-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Focus</p>
+                <h3>当前节点观察</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              ${buildOverlayPanelSnapshot(elements.graphDetail, "这里会显示当前节点的详细信息。")}
+            </div>
+          </article>
+        </div>
+        <article class="panel modal-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Plan</p>
+              <h3>阶段计划详情</h3>
+            </div>
+          </div>
+          <div class="panel-body">
+            ${buildOverlayPanelSnapshot(elements.planList, "阶段计划加载中...")}
+          </div>
+        </article>
+      </div>
+    `;
+    return;
+  }
+
+  const reviewTab = state.currentOverlayTab || "report";
+  const reviewContentMap = {
+    report: {
+      title: "结构化复盘",
+      content: buildOverlayPanelSnapshot(elements.reportPanel, "完成面试后，这里会显示结构化复盘。")
+    },
+    jobs: {
+      title: "后台任务",
+      content: buildOverlayPanelSnapshot(elements.backgroundJobsPanel, "开始面试后，这里会显示后台任务状态。")
+    },
+    observability: {
+      title: "运行观测",
+      content: buildOverlayPanelSnapshot(elements.observabilityPanel, "日志聚合视图加载中...")
+    }
+  };
+  const activeReviewContent = reviewContentMap[reviewTab] || reviewContentMap.report;
+
+  elements.overlayBody.innerHTML = `
+    <div class="modal-grid app-overlay-grid review-overlay-grid">
+      <article class="panel modal-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h3>${escapeHtml(activeReviewContent.title)}</h3>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${activeReviewContent.content}
+        </div>
+      </article>
+      ${buildOverlaySessionSummary()}
+    </div>
+  `;
+}
+
+function renderViewHeader() {
+  if (!elements.viewTitle || !elements.viewDescription || !elements.viewEyebrow) {
+    return;
+  }
+
+  if (state.currentView === "session") {
+    const workspaceMeta = SESSION_WORKSPACE_META[state.currentSessionWorkspace] || SESSION_WORKSPACE_META.realtime;
+    elements.viewEyebrow.textContent = "Session";
+
+    if (!state.session) {
+      elements.viewTitle.textContent = "会话工作区";
+      elements.viewDescription.textContent = workspaceMeta.description;
+      return;
+    }
+
+    const template = state.session.interviewTemplate;
+    elements.viewTitle.textContent = template
+      ? (template.name || `${template.companyName || "模板"} / ${template.jobDirection || "面试"}`)
+      : `${state.session.role?.name || "面试官"} / ${state.session.job?.title || "当前会话"}`;
+    elements.viewDescription.textContent = state.session.plan?.summary
+      ? `${workspaceMeta.label} · ${state.session.plan.summary}`
+      : workspaceMeta.description;
+    return;
+  }
+
+  if (state.currentView === "template-editor") {
+    const template = state.currentTemplateId ? findTemplateById(state.currentTemplateId) : null;
+    const draft = buildTemplateDraft();
+    elements.viewEyebrow.textContent = "Template Editor";
+    elements.viewTitle.textContent = template?.name || draft.name || deriveTemplateName(draft);
+    elements.viewDescription.textContent = template
+      ? "在独立模板工作台里维护字段、说明和高级配置。"
+      : "当前正在编辑一个未保存模板，保存后会进入模板资产库。";
+    return;
+  }
+
+  const meta = APP_VIEW_META[state.currentView] || APP_VIEW_META.dashboard;
+  elements.viewEyebrow.textContent = meta.eyebrow;
+  elements.viewTitle.textContent = meta.title;
+  elements.viewDescription.textContent = meta.description;
+}
+
+function renderDashboardOverviewPanel() {
+  if (!elements.dashboardOverviewPanel || !state.bootstrap) {
+    return;
+  }
+
+  const candidate = state.bootstrap.candidate || {};
+  const provider = state.bootstrap.provider || {};
+  const session = state.session;
+  const currentTemplate = state.currentTemplateId
+    ? findTemplateById(state.currentTemplateId)
+    : null;
+
+  elements.dashboardOverviewPanel.className = "panel";
+  elements.dashboardOverviewPanel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Workspace</p>
+        <h2>当前工作区概览</h2>
+      </div>
+      <div class="summary-badges">
+        ${renderPill(candidate.ready ? "简历已就绪" : "待导入简历", candidate.ready ? "accent" : "")}
+        ${renderPill(provider.configured ? provider.mode : "provider fallback")}
+      </div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-tile">
+        <span class="metric-label">简历状态</span>
+        <strong>${escapeHtml(candidate.ready ? "Ready" : "Missing")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">模板数量</span>
+        <strong>${escapeHtml((state.bootstrap.templates || []).length)}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">当前会话</span>
+        <strong>${escapeHtml(session ? sessionStatusLabel(session.status) : "Idle")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">当前模板</span>
+        <strong>${escapeHtml(currentTemplate?.name || "未绑定")}</strong>
+      </div>
+    </div>
+    <div class="quick-action-row">
+      <button type="button" class="primary-button" data-nav-view="start">开始新面试</button>
+      <button type="button" class="secondary-button" data-nav-view="templates">打开模板中心</button>
+      <button type="button" class="secondary-button" data-nav-view="settings">查看设置</button>
+    </div>
+  `;
+}
+
+function renderDashboardSessionPanel() {
+  if (!elements.dashboardSessionPanel) {
+    return;
+  }
+
+  const session = state.session;
+  if (!session) {
+    elements.dashboardSessionPanel.className = "panel";
+    elements.dashboardSessionPanel.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Recent Session</p>
+          <h2>还没有进行中的会话</h2>
+        </div>
+      </div>
+      <p class="summary-copy">补齐简历和模板后，就可以从“开始面试”发起新会话。</p>
+      <div class="quick-action-row">
+        <button type="button" class="secondary-button" data-nav-view="start">前往开始面试</button>
+      </div>
+    `;
+    return;
+  }
+
+  const thread = findCurrentThread(session);
+  elements.dashboardSessionPanel.className = "panel";
+  elements.dashboardSessionPanel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Recent Session</p>
+        <h2>${escapeHtml(session.interviewTemplate?.name || session.job?.title || "当前会话")}</h2>
+      </div>
+      <div class="summary-badges">
+        ${renderPill(sessionStatusLabel(session.status), session.status === "active" ? "accent" : "")}
+        ${renderPill(`${session.turns?.length || 0} rounds`)}
+      </div>
+    </div>
+    <div class="graph-detail-sections">
+      <section class="graph-detail-section">
+        <p class="detail-label">${renderLabelWithTooltip("线程", "当前问题落在哪条话题线程里，方便判断追问是否还在同一上下文。")}</p>
+        <p class="summary-copy">${escapeHtml(thread?.label || "等待进入新的问题线程")}</p>
+      </section>
+      <section class="graph-detail-section">
+        <p class="detail-label">${renderLabelWithTooltip("计划", "这里显示当前会话的阶段计划摘要，不再把完整说明全部展开到首页。")}</p>
+        <p class="summary-copy">${escapeHtml(session.plan?.summary || "当前还没有可展示的计划摘要。")}</p>
+      </section>
+    </div>
+    <div class="quick-action-row">
+      <button type="button" class="primary-button" data-nav-view="session">继续当前会话</button>
+      <button type="button" class="secondary-button" data-nav-view="start">新建一场面试</button>
+    </div>
+  `;
+}
+
+function renderStartSessionPanel() {
+  if (!elements.startSessionPanel || !state.bootstrap) {
+    return;
+  }
+
+  const candidate = state.bootstrap.candidate || {};
+  const currentTemplate = state.currentTemplateId
+    ? findTemplateById(state.currentTemplateId)
+    : null;
+  const draft = buildTemplateDraft();
+  const effectiveTemplate = currentTemplate || draft;
+  const readiness = buildTemplateSectionStatus(effectiveTemplate);
+  const templateName = currentTemplate?.name || draft.name || deriveTemplateName(draft);
+  const summaryParts = [
+    draft.jobDirection || currentTemplate?.jobDirection,
+    draft.interviewerRoleName || currentTemplate?.interviewerRoleName
+  ].filter(Boolean);
+  const hasSavedTemplate = Boolean(currentTemplate?.id && isCurrentTemplateSaved());
+  const hasLaunchReadyTemplate = readiness.completedCount >= Math.max(5, readiness.totalCount - 1);
+  const launchDescription = draft.jobDescription || currentTemplate?.jobDescription || "当前模板还没有岗位说明，建议先回到模板编辑页补充。";
+  const webSearchEnabled = Boolean(elements.webSearchInput?.checked);
+  const preflightItems = [
+    {
+      title: "简历工作区",
+      ready: Boolean(candidate.ready),
+      description: candidate.ready ? "简历已导入，可用于生成问题和上下文证据。" : "还没有导入简历，当前不能正式启动面试。"
+    },
+    {
+      title: "模板完成度",
+      ready: hasLaunchReadyTemplate,
+      description: hasLaunchReadyTemplate
+        ? `模板完成度 ${readiness.completedCount}/${readiness.totalCount}，可以进入启动阶段。`
+        : `模板完成度 ${readiness.completedCount}/${readiness.totalCount}，建议继续补齐后再启动。`
+    },
+    {
+      title: "模板保存状态",
+      ready: hasSavedTemplate,
+      description: hasSavedTemplate
+        ? "当前使用的是已保存模板，后续会话会绑定这份模板资产。"
+        : "当前会话会使用编辑区草稿启动，但仍建议先保存模板。"
+    },
+    {
+      title: "联网开关",
+      ready: true,
+      description: webSearchEnabled
+        ? "已允许 AI 在规划和出题阶段按需联网搜索。"
+        : "当前为离线规划模式，只使用本地简历和模板上下文。"
+    }
+  ];
+
+  elements.startSessionPanel.className = "panel";
+  elements.startSessionPanel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Launch</p>
+        <h2>启动新的面试会话</h2>
+      </div>
+      <div class="summary-badges">
+        ${renderPill(candidate.ready ? "简历已导入" : "请先导入简历", candidate.ready ? "accent" : "")}
+        ${renderPill(hasSavedTemplate ? "已保存模板" : "使用当前草稿")}
+      </div>
+    </div>
+
+    <div class="launch-step-grid">
+      <article class="launch-step-card">
+        <p class="card-kicker">Step 01</p>
+        <h3>确认模板</h3>
+        <strong>${escapeHtml(templateName || "未命名模板")}</strong>
+        <p>${escapeHtml(summaryParts.join(" / ") || "待补充岗位方向与面试官角色")}</p>
+      </article>
+      <article class="launch-step-card">
+        <p class="card-kicker">Step 02</p>
+        <h3>检查完成度</h3>
+        <strong>${escapeHtml(`${readiness.completedCount}/${readiness.totalCount}`)}</strong>
+        <p>${escapeHtml(hasLaunchReadyTemplate ? "模板内容基本齐全，可以作为正式启动配置。" : "模板还不够完整，建议先回模板页完善。")}</p>
+      </article>
+      <article class="launch-step-card current">
+        <p class="card-kicker">Step 03</p>
+        <h3>发起会话</h3>
+        <strong>${escapeHtml(candidate.ready ? "预检已具备" : "等待预检通过")}</strong>
+        <p>${escapeHtml(webSearchEnabled ? "将以可联网模式启动会话。" : "将以离线模式启动会话。")}</p>
+      </article>
+    </div>
+
+    <div class="launch-preflight-grid">
+      ${preflightItems.map((item) => `
+        <article class="launch-preflight-card">
+          <p class="card-kicker">${escapeHtml(item.title)}</p>
+          <h3>${escapeHtml(item.ready ? "已就绪" : "待补充")}</h3>
+          <p>${escapeHtml(item.description)}</p>
+        </article>
+      `).join("")}
+    </div>
+
+    <div class="graph-detail-sections">
+      <section class="graph-detail-section">
+        <p class="detail-label">${renderLabelWithTooltip("当前说明", "使用当前模板里的岗位说明作为本次启动前的快速预览。")}</p>
+        <p class="summary-copy">${escapeHtml(truncateText(launchDescription, 110))}</p>
+      </section>
+      <section class="graph-detail-section">
+        <p class="detail-label">${renderLabelWithTooltip("启动建议", "这一步只负责预检和启动；如果模板还没补齐，建议先回模板页完善。")}</p>
+        <p class="summary-copy">${escapeHtml(hasLaunchReadyTemplate ? "预检通过后即可直接启动。" : "建议先补齐模板，再进入正式面试。")}</p>
+      </section>
+    </div>
+  `;
+}
+
+function renderSettingsOverviewPanel() {
+  if (!elements.settingsOverviewPanel || !state.bootstrap) {
+    return;
+  }
+
+  const provider = state.bootstrap.provider || {};
+  const candidate = state.bootstrap.candidate || {};
+  const runtime = state.desktopRuntime || {};
+  const settings = state.appSettings || {};
+  const ai = settings.ai || {};
+  const embedding = settings.embedding || {};
+
+  elements.settingsOverviewPanel.className = "panel";
+  elements.settingsOverviewPanel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Environment</p>
+        <h2>运行环境概览</h2>
+      </div>
+      <div class="summary-badges">
+        ${renderPill(runtime.enabled ? "desktop runtime" : "web runtime")}
+        ${renderPill(provider.configured ? provider.mode : "fallback")}
+      </div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-tile">
+        <span class="metric-label">主模型</span>
+        <strong>${escapeHtml(ai.model || provider.mode || "未配置")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">简历工作区</span>
+        <strong>${escapeHtml(candidate.ready ? "Ready" : "Missing")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">数据目录</span>
+        <strong>${escapeHtml(runtime.dataDir || candidate.workspacePath || "Local workspace")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="metric-label">Embedding</span>
+        <strong>${escapeHtml(embedding.model || "未配置")}</strong>
+      </div>
+    </div>
+    <div class="graph-detail-sections">
+      <section class="graph-detail-section">
+        <p class="detail-label">${renderLabelWithTooltip("配置文件", "设置保存后会直接写入当前运行环境对应的 .env 文件。")}</p>
+        <div class="markdown-code">${escapeHtml(settings.envFilePath || "Loading...")}</div>
+      </section>
+      <section class="graph-detail-section">
+        <p class="detail-label">${renderLabelWithTooltip("当前口径", "主模型链路当前稳定支持 Moonshot；Embedding 使用兼容 OpenAI 接口的配置方式。")}</p>
+        <p class="summary-copy">设置页现在可以直接填写并保存 API Key、模型名和接口地址。</p>
+      </section>
+    </div>
+  `;
+}
+
+function renderSettingsConfigPanel() {
+  if (!elements.settingsConfigPanel) {
+    return;
+  }
+
+  if (state.appSettingsError) {
+    elements.settingsConfigPanel.className = "empty-state";
+    elements.settingsConfigPanel.textContent = state.appSettingsError;
+    return;
+  }
+
+  if (!state.appSettings) {
+    elements.settingsConfigPanel.className = "empty-state";
+    elements.settingsConfigPanel.textContent = "Loading settings...";
+    return;
+  }
+
+  const ai = state.appSettings.ai || {};
+  const embedding = state.appSettings.embedding || {};
+  const runtime = state.appSettings.runtime || {};
+  const statusClass = state.appSettingsStatusTone === "saved"
+    ? "saved"
+    : state.appSettingsStatusTone === "error"
+      ? "error"
+      : "neutral";
+  const statusText = state.appSettingsSaving
+    ? "正在保存..."
+    : (state.appSettingsStatus || "本地设置");
+
+  elements.settingsConfigPanel.className = "settings-stack";
+  elements.settingsConfigPanel.innerHTML = `
+    <article class="settings-hero-card">
+      <div>
+        <p class="eyebrow">Profile</p>
+        <h3>把常用配置收进应用内</h3>
+        <p class="summary-copy">这里的设置会直接作用于当前本地运行环境，不需要再手动打开 .env 修改。</p>
+      </div>
+      <div class="summary-badges">
+        ${renderPill(runtime.desktopRuntimeMode || "web")}
+        ${renderPill(runtime.storageMode || "database_only")}
+      </div>
+    </article>
+
+    <article class="settings-form-card">
+      <div class="settings-card-header">
+        <div>
+          <p class="eyebrow">Main AI</p>
+          <h3>主模型配置</h3>
+        </div>
+        <span class="status-badge neutral">Moonshot</span>
+      </div>
+      <div class="settings-form-grid">
+        <label class="field">
+          <span>${renderLabelWithTooltip("Provider", "当前主推理链路稳定支持 Moonshot，后续如果接更多 provider 再从这里扩展。")}</span>
+          <select id="settings-ai-provider">
+            ${(ai.providerOptions || [{ id: "moonshot", label: "Moonshot / Kimi" }]).map((option) => `
+              <option value="${escapeHtml(option.id)}" ${option.id === ai.provider ? "selected" : ""}>
+                ${escapeHtml(option.label)}
+              </option>
+            `).join("")}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Thinking</span>
+          <select id="settings-ai-thinking">
+            <option value="enabled" ${ai.thinking !== "disabled" ? "selected" : ""}>enabled</option>
+            <option value="disabled" ${ai.thinking === "disabled" ? "selected" : ""}>disabled</option>
+          </select>
+        </label>
+
+        <label class="field settings-field-span-2">
+          <span>API Key</span>
+          <input id="settings-ai-api-key" type="password" value="${escapeHtml(ai.apiKey || "")}" placeholder="输入 Moonshot API Key" spellcheck="false" />
+        </label>
+
+        <label class="field">
+          <span>Model</span>
+          <input id="settings-ai-model" type="text" value="${escapeHtml(ai.model || "")}" placeholder="例如 kimi-k2.5" spellcheck="false" />
+        </label>
+
+        <label class="field">
+          <span>Base URL</span>
+          <input id="settings-ai-base-url" type="text" value="${escapeHtml(ai.baseUrl || "")}" placeholder="https://api.moonshot.cn/v1" spellcheck="false" />
+        </label>
+      </div>
+    </article>
+
+    <article class="settings-form-card">
+      <div class="settings-card-header">
+        <div>
+          <p class="eyebrow">Embedding</p>
+          <h3>向量配置</h3>
+        </div>
+        <span class="status-badge neutral">OpenAI Compatible</span>
+      </div>
+      <div class="settings-form-grid">
+        <label class="field">
+          <span>${renderLabelWithTooltip("Provider", "Embedding 当前按兼容 OpenAI 风格接口来配置，适合接百炼这类兼容端点。")}</span>
+          <input id="settings-embedding-provider" type="text" value="${escapeHtml(embedding.provider || "")}" placeholder="openai_compatible" spellcheck="false" />
+        </label>
+
+        <label class="field">
+          <span>Dimensions</span>
+          <input id="settings-embedding-dimensions" type="number" min="0" step="1" value="${escapeHtml(embedding.dimensions || "")}" placeholder="留空则使用服务端默认值" />
+        </label>
+
+        <label class="field settings-field-span-2">
+          <span>API Key</span>
+          <input id="settings-embedding-api-key" type="password" value="${escapeHtml(embedding.apiKey || "")}" placeholder="输入 Embedding API Key" spellcheck="false" />
+        </label>
+
+        <label class="field">
+          <span>Model</span>
+          <input id="settings-embedding-model" type="text" value="${escapeHtml(embedding.model || "")}" placeholder="例如 text-embedding-v4" spellcheck="false" />
+        </label>
+
+        <label class="field">
+          <span>Base URL</span>
+          <input id="settings-embedding-base-url" type="text" value="${escapeHtml(embedding.baseUrl || "")}" placeholder="兼容 OpenAI 的 /v1 根地址" spellcheck="false" />
+        </label>
+      </div>
+      <label class="toggle-field settings-toggle">
+        <input id="settings-embedding-sync-on-write" type="checkbox" ${embedding.syncOnWrite ? "checked" : ""} />
+        <span>写入知识库后立即同步生成 embedding</span>
+      </label>
+    </article>
+
+    <div class="settings-action-row">
+      <span class="status-badge ${statusClass}">${escapeHtml(statusText)}</span>
+      <button type="button" class="secondary-button" data-settings-reset="true" ${state.appSettingsSaving ? "disabled" : ""}>恢复当前值</button>
+      <button type="button" class="primary-button" data-settings-save="true" ${state.appSettingsSaving ? "disabled" : ""}>保存设置</button>
+    </div>
+  `;
+}
+
+function renderAppChrome() {
+  renderNavigation();
+  renderActiveView();
+  renderViewHeader();
+  renderDashboardOverviewPanel();
+  renderDashboardSessionPanel();
+  renderStartSessionPanel();
+  renderSettingsOverviewPanel();
+  renderSettingsConfigPanel();
 }
 
 export function renderBootstrap() {
@@ -125,13 +855,26 @@ export function renderBootstrap() {
     : "当前工作区还没有导入简历，暂时不能开始面试。";
   state.bootstrap.templates = sortTemplates(state.bootstrap.templates || []);
   renderTemplatePicker();
-  fillTemplateForm(state.bootstrap.templates[0] || createBlankTemplate());
+  const hasDraftContent = Boolean(
+    elements.templateNameInput?.value
+    || elements.companyNameInput?.value
+    || elements.jobDirectionInput?.value
+    || elements.jobDescriptionInput?.value
+    || elements.interviewerRoleNameInput?.value
+  );
+  const currentTemplateExists = state.currentTemplateId
+    ? Boolean(findTemplateById(state.currentTemplateId))
+    : false;
+  if ((!state.currentTemplateId && !hasDraftContent) || (state.currentTemplateId && !currentTemplateExists)) {
+    fillTemplateForm(state.bootstrap.templates[0] || createBlankTemplate());
+  }
   updateShellSummary();
+  renderAppChrome();
 }
 
 // 计划区默认保持高信息密度，但把次级细节折叠起来，
 // 这样在调试信息变多之后仍然能保持可读性。
-function renderPlan() {
+function renderPlanLegacy() {
   if (!state.session) {
     elements.planList.className = "plan-list empty-state";
     elements.planList.textContent = "开始面试后，这里会展示当前阶段和整体覆盖计划。";
@@ -180,6 +923,197 @@ function renderPlan() {
 
 // 对话区同时渲染历史 turn 和当前待答题，
 // 这样用户在回答之前也能看到完整的当前状态。
+function resolveSelectedPlanStageIndex(stages, fallbackIndex = 0) {
+  if (!stages.length) {
+    state.selectedPlanStageIndex = "";
+    return -1;
+  }
+
+  const explicitIndex = Number.parseInt(String(state.selectedPlanStageIndex), 10);
+  const normalizedFallback = Number.isInteger(fallbackIndex)
+    ? Math.min(Math.max(fallbackIndex, 0), stages.length - 1)
+    : 0;
+  const nextIndex = Number.isInteger(explicitIndex) && explicitIndex >= 0 && explicitIndex < stages.length
+    ? explicitIndex
+    : normalizedFallback;
+
+  state.selectedPlanStageIndex = String(nextIndex);
+  return nextIndex;
+}
+
+function buildPlanStageState(index, currentIndex) {
+  if (index < currentIndex) {
+    return {
+      label: "已完成",
+      tone: ""
+    };
+  }
+
+  if (index === currentIndex) {
+    return {
+      label: "进行中",
+      tone: "accent"
+    };
+  }
+
+  return {
+    label: "未开始",
+    tone: ""
+  };
+}
+
+function buildPlanStageWorkspace(stage, index, stages, session) {
+  const coverage = session.coverage || {};
+  const bucket = coverage[stage.category] || {};
+  const stageState = buildPlanStageState(index, session.stageIndex);
+  const targetTopics = (stage.targetTopics || [])
+    .map((topic) => topic?.label || topic?.name || topic)
+    .filter(Boolean);
+  const relatedNodes = (session.topicGraph?.nodes || [])
+    .filter((node) => (node.stageTitles || []).includes(stage.title) || node.category === stage.category)
+    .sort((left, right) => (
+      Number(Boolean(right.currentQuestion || right.activeThreadId)) - Number(Boolean(left.currentQuestion || left.activeThreadId))
+      || (right.askCount || 0) - (left.askCount || 0)
+      || String(left.label || "").localeCompare(String(right.label || ""))
+    ));
+  const activeThread = findCurrentThread(session);
+  const currentQuestion = session.nextQuestion?.topicCategory === stage.category
+    ? session.nextQuestion
+    : null;
+  const stageSummary = truncateText(stage.goal || stage.promptHint || "当前阶段暂无补充说明。", 72);
+  const currentQuestionPreview = truncateText(
+    currentQuestion?.text || "当前问题还没有落到这个阶段。",
+    84
+  );
+
+  return `
+    <div class="plan-stage-strip" role="tablist" aria-label="阶段计划">
+      ${stages.map((item, itemIndex) => {
+        const itemState = buildPlanStageState(itemIndex, session.stageIndex);
+        const isActive = itemIndex === index;
+        const itemBucket = coverage[item.category] || {};
+
+        return `
+          <button
+            type="button"
+            class="plan-stage-button ${isActive ? "is-active" : ""}"
+            data-plan-stage-index="${itemIndex}"
+            aria-pressed="${isActive ? "true" : "false"}"
+          >
+            <span class="plan-stage-button-step">阶段 ${itemIndex + 1}</span>
+            <strong class="plan-stage-button-title">${escapeHtml(item.title || "阶段")}</strong>
+            <span class="plan-stage-button-meta">${escapeHtml(itemState.label)} · ${escapeHtml(`${itemBucket.asked || 0}/${itemBucket.planned || 0}`)}</span>
+          </button>
+        `;
+      }).join("")}
+    </div>
+
+    <article class="plan-stage-detail-card">
+      <header class="graph-detail-header">
+        <div>
+          <p class="card-kicker">${escapeHtml(topicLabel(stage.category))}</p>
+          <h3 class="card-title">${escapeHtml(stage.title || `阶段 ${index + 1}`)}</h3>
+          <p class="summary-copy">${escapeHtml(stageSummary)}</p>
+        </div>
+        <div class="summary-badges">
+          ${renderPill(`阶段 ${index + 1}/${stages.length}`)}
+          ${renderPill(stageState.label, stageState.tone)}
+          ${renderPill(`${bucket.asked || 0} / ${bucket.planned || 0} 题`)}
+          ${renderPill(`均分 ${bucket.averageScore ?? "--"}`)}
+        </div>
+      </header>
+
+      <div class="metric-grid compact">
+        <div class="metric-tile accent">
+          <span class="metric-label">覆盖进度</span>
+          <strong>${escapeHtml(`${bucket.asked || 0} / ${bucket.planned || 0}`)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">目标主题</span>
+          <strong>${escapeHtml(targetTopics.length || 0)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">图谱节点</span>
+          <strong>${escapeHtml(relatedNodes.length || 0)}</strong>
+        </div>
+        <div class="metric-tile">
+          <span class="metric-label">当前线程</span>
+          <strong>${escapeHtml(activeThread?.label || "待进入")}</strong>
+        </div>
+      </div>
+
+      <div class="plan-stage-detail-grid">
+        <section class="graph-detail-section">
+          <p class="detail-label">${renderLabelWithTooltip("目标", "本阶段希望验证的核心能力、经验范围和面试意图。")}</p>
+          <div class="markdown-block">${renderMarkdown(stage.goal, { empty: "暂无阶段目标说明" })}</div>
+        </section>
+
+        <section class="graph-detail-section">
+          <p class="detail-label">${renderLabelWithTooltip("提示", "给出提问方向、追问方式或本阶段的操作提醒。")}</p>
+          <div class="markdown-block subtle">${renderMarkdown(stage.promptHint, { empty: "暂无提问提示" })}</div>
+        </section>
+
+        <section class="graph-detail-section">
+          <p class="detail-label">${renderLabelWithTooltip("主题", "这个阶段重点覆盖的能力主题或项目维度。")}</p>
+          <div class="chip-wrap">
+            ${targetTopics.length
+              ? targetTopics.map((topic) => `<span class="topic-tag compact">${escapeHtml(topic)}</span>`).join("")
+              : '<span class="muted">暂无目标主题</span>'}
+          </div>
+        </section>
+
+        <section class="graph-detail-section">
+          <p class="detail-label">${renderLabelWithTooltip("节点", "与当前阶段相关的图谱节点，可用来观察覆盖范围和追问落点。")}</p>
+          <div class="chip-wrap">
+            ${relatedNodes.length
+              ? relatedNodes.slice(0, 8).map((node) => `<span class="topic-tag compact">${escapeHtml(node.label)}</span>`).join("")
+              : '<span class="muted">当前还没有落到图谱节点</span>'}
+          </div>
+        </section>
+
+        <section class="graph-detail-section">
+          <p class="detail-label">${renderLabelWithTooltip("信号", "显示当前阶段状态、活跃线程和本阶段相关的当前问题。")}</p>
+          <div class="markdown-block subtle">${renderMarkdown([
+            `- 状态：${stageState.label}`,
+            `- 线程：${activeThread?.label || "暂无活跃线程"}`,
+            `- 当前题：${currentQuestionPreview}`
+          ].join("\n"))}</div>
+        </section>
+
+        <section class="graph-detail-section">
+          <p class="detail-label">${renderLabelWithTooltip("备注", "记录阶段补充说明、人工判断或自动生成的额外摘要。")}</p>
+          <div class="markdown-block subtle">${renderMarkdown(stage.notes || stage.summary, { empty: "当前阶段还没有附加备注" })}</div>
+        </section>
+      </div>
+    </article>
+  `;
+}
+
+function renderPlanWorkspace() {
+  if (!state.session) {
+    elements.planList.className = "plan-list empty-state";
+    elements.planList.textContent = "开始面试后，这里会展示阶段切换和详细计划。";
+    return;
+  }
+
+  const stages = state.session.plan?.stages || [];
+  if (!stages.length) {
+    elements.planList.className = "plan-list empty-state";
+    elements.planList.textContent = "当前会话还没有生成阶段计划。";
+    state.selectedPlanStageIndex = "";
+    return;
+  }
+
+  const activeIndex = resolveSelectedPlanStageIndex(stages, state.session.stageIndex);
+  elements.planList.className = "plan-list plan-workspace";
+  elements.planList.innerHTML = buildPlanStageWorkspace(
+    stages[activeIndex] || stages[0],
+    activeIndex,
+    stages,
+    state.session
+  );
+}
+
 function renderConversation() {
   if (!state.session) {
     elements.conversation.className = "conversation empty-state";
@@ -1263,13 +2197,15 @@ function ensureRunClock() {
 
 export function renderSession() {
   updateShellSummary();
+  renderAppChrome();
+  renderSessionWorkspaceChrome();
 
   if (!state.session) {
     elements.sessionTitle.textContent = "尚未开始";
     elements.sessionSubtitle.textContent = "先选择模板或创建一个新的面试模板，再启动面试。";
     elements.stageChip.textContent = "Idle";
     elements.turnCounter.textContent = "0 / 0";
-    renderPlan();
+    renderPlanWorkspace();
     renderConversation();
     renderRunState();
     renderReport();
@@ -1278,6 +2214,9 @@ export function renderSession() {
     renderDesktopRuntimePanel();
     syncAnswerControls();
     stopRunClock();
+    renderSessionWorkspaceChrome();
+    renderAppChrome();
+    renderAppOverlay();
     return;
   }
 
@@ -1292,16 +2231,16 @@ export function renderSession() {
     : `${state.session.role.name} 路 ${state.session.job.title}`;
 
   elements.sessionSubtitle.textContent = template
-    ? `${template.interviewerRoleName} 路 ${state.session.plan?.summary || "暂无计划摘要"}${state.session.enableWebSearch ? " 路 已启用联网搜索" : ""}`
-    : `${state.session.plan?.summary || "暂无计划摘要"}${state.session.enableWebSearch ? " 路 已启用联网搜索" : ""}`;
+    ? `${template.interviewerRoleName || "面试官"} · ${truncateText(state.session.plan?.summary || "正在生成正式面试计划。", 48)}${state.session.enableWebSearch ? " · 联网" : ""}`
+    : `${truncateText(state.session.plan?.summary || "正在生成正式面试计划。", 48)}${state.session.enableWebSearch ? " · 联网" : ""}`;
 
   elements.stageChip.textContent = activePhase
     ? `${activePhase.name} 路 ${formatDuration(getLivePhaseDuration(activePhase, new Date()))}`
     : (stage?.title || sessionStatusLabel(state.session.status));
   elements.turnCounter.textContent = `${state.session.turns.length} / ${state.session.plan?.targetTurnCount || 0}`;
-  elements.runStatus.textContent = `${sessionStatusLabel(state.session.status)}${thread ? ` 路 ${thread.label}` : ""}`;
+  elements.runStatus.textContent = `${sessionStatusLabel(state.session.status)}${thread ? ` · ${thread.label}` : ""}`;
 
-  renderPlan();
+  renderPlanWorkspace();
   renderConversation();
   renderRunState();
   renderReport();
@@ -1310,5 +2249,8 @@ export function renderSession() {
   renderDesktopRuntimePanel();
   syncAnswerControls();
   ensureRunClock();
+  renderSessionWorkspaceChrome();
   updateShellSummary();
+  renderAppChrome();
+  renderAppOverlay();
 }

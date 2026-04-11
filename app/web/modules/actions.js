@@ -1,11 +1,13 @@
 import {
   cleanupDesktopRuntime,
+  fetchAppSettings,
   fetchDesktopRuntime,
   fetchBootstrap,
   fetchObservabilityOverview,
   importDesktopResumePackage,
   fetchSessionObservability,
   resetDesktopRuntime,
+  saveAppSettings,
   request
 } from "./api.js";
 import { elements } from "./dom.js";
@@ -16,12 +18,15 @@ import {
   createBlankTemplate,
   fillTemplateForm,
   findTemplateById,
+  hasTemplateDraftContent,
   isCurrentTemplateSaved,
   removeTemplate,
   renderTemplatePicker,
+  setTemplateSelection,
   updateTemplateChrome,
   upsertTemplate
 } from "./templates.js";
+import { DEFAULT_APP_VIEW, getAppViewFromLocationHash, normalizeAppView } from "./views.js";
 
 const OBSERVABILITY_POLL_INTERVAL_MS = 15_000;
 
@@ -62,6 +67,42 @@ function stopObservabilityPolling() {
     clearInterval(state.observabilityPollingTimer);
     state.observabilityPollingTimer = null;
   }
+}
+
+function renderCurrentAppView() {
+  if (state.bootstrap) {
+    renderBootstrap();
+  }
+  renderSession();
+}
+
+export function setCurrentView(view, { syncHash = true } = {}) {
+  const nextView = normalizeAppView(view || DEFAULT_APP_VIEW);
+  if (state.currentOverlay && nextView !== "session") {
+    state.currentOverlay = "";
+    state.currentOverlayTab = "";
+  }
+  if (state.currentView === nextView) {
+    if (syncHash) {
+      const nextHash = `#/${nextView}`;
+      if (window.location.hash !== nextHash) {
+        window.history.replaceState(null, "", nextHash);
+      }
+    }
+    return;
+  }
+
+  state.currentView = nextView;
+  if (syncHash) {
+    const nextHash = `#/${nextView}`;
+    window.history.replaceState(null, "", nextHash);
+  }
+  renderCurrentAppView();
+}
+
+export function syncViewFromLocation() {
+  state.currentView = getAppViewFromLocationHash(window.location.hash);
+  renderCurrentAppView();
 }
 
 export async function refreshObservability() {
@@ -125,6 +166,17 @@ export async function refreshDesktopRuntime() {
     state.desktopRuntimeError = "";
   } catch (error) {
     state.desktopRuntimeError = error.message || "desktop runtime 加载失败";
+  } finally {
+    renderSession();
+  }
+}
+
+export async function refreshAppSettings() {
+  try {
+    state.appSettings = await fetchAppSettings();
+    state.appSettingsError = "";
+  } catch (error) {
+    state.appSettingsError = error.message || "设置加载失败";
   } finally {
     renderSession();
   }
@@ -253,6 +305,43 @@ function switchObservabilityScope(scope) {
   renderSession();
 }
 
+function confirmDiscardTemplateChanges() {
+  if (isCurrentTemplateSaved()) {
+    return true;
+  }
+
+  if (!hasTemplateDraftContent()) {
+    return true;
+  }
+
+  return window.confirm("当前模板编辑区有未保存内容，继续会覆盖这些修改。要继续吗？");
+}
+
+function openTemplateEditor(templateId = state.templateSelectionId || elements.templateSelect.value || "") {
+  if (!templateId) {
+    if (!confirmDiscardTemplateChanges()) {
+      return;
+    }
+    setTemplateSelection("");
+    fillTemplateForm(createBlankTemplate(), { keepSelection: true });
+    setCurrentView("template-editor");
+    return;
+  }
+
+  if (!confirmDiscardTemplateChanges()) {
+    renderTemplatePicker();
+    return;
+  }
+
+  const template = findTemplateById(templateId);
+  if (!template) {
+    return;
+  }
+
+  fillTemplateForm(template);
+  setCurrentView("template-editor");
+}
+
 async function saveTemplate() {
   const payload = buildPersistedTemplatePayload();
   elements.saveTemplateButton.disabled = true;
@@ -269,6 +358,54 @@ async function saveTemplate() {
     renderSession();
   } finally {
     elements.saveTemplateButton.disabled = false;
+  }
+}
+
+async function legacyCopyTemplate() {
+  const payload = buildPersistedTemplatePayload({ forceCopy: true });
+  payload.name = `${payload.name} 副本`;
+  elements.copyTemplateButton.disabled = true;
+
+  try {
+    const copied = await request("/api/templates", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    upsertTemplate(copied);
+    renderTemplatePicker();
+    fillTemplateForm(copied);
+    renderSession();
+  } finally {
+    elements.copyTemplateButton.disabled = false;
+  }
+}
+
+async function legacyDeleteCurrentTemplate() {
+  if (!state.currentTemplateId) {
+    return;
+  }
+
+  const template = findTemplateById(state.currentTemplateId);
+  if (!template) {
+    return;
+  }
+
+  const confirmed = window.confirm(`确定删除模板“${template.name}”吗？`);
+  if (!confirmed) {
+    return;
+  }
+
+  elements.deleteTemplateButton.disabled = true;
+  try {
+    await request(`/api/templates/${template.id}`, {
+      method: "DELETE"
+    });
+    removeTemplate(template.id);
+    renderTemplatePicker();
+    fillTemplateForm(state.bootstrap.templates[0] || createBlankTemplate());
+    renderSession();
+  } finally {
+    elements.deleteTemplateButton.disabled = false;
   }
 }
 
@@ -312,8 +449,10 @@ async function deleteCurrentTemplate() {
       method: "DELETE"
     });
     removeTemplate(template.id);
+    setTemplateSelection(state.bootstrap.templates[0]?.id || "");
     renderTemplatePicker();
-    fillTemplateForm(state.bootstrap.templates[0] || createBlankTemplate());
+    fillTemplateForm(createBlankTemplate(), { keepSelection: true });
+    setCurrentView("templates");
     renderSession();
   } finally {
     elements.deleteTemplateButton.disabled = false;
@@ -353,7 +492,10 @@ async function startInterview() {
     }
 
     state.observabilityScope = "session";
+    state.currentSessionWorkspace = "realtime";
+    state.selectedPlanStageIndex = "";
     elements.answerInput.value = "";
+    setCurrentView("session");
     renderSession();
     refreshObservability();
     startSessionStream(state.session.id);
@@ -384,9 +526,27 @@ async function submitAnswer() {
   }
 }
 
-function loadSelectedTemplate() {
-  const template = findTemplateById(elements.templateSelect.value);
+function legacyLoadSelectedTemplate() {
+  const selectedTemplateId = state.templateSelectionId || elements.templateSelect.value;
+  if (!selectedTemplateId) {
+    if (!confirmDiscardTemplateChanges()) {
+      return;
+    }
+    fillTemplateForm(createBlankTemplate(), { keepSelection: true });
+    return;
+  }
+
+  if (!confirmDiscardTemplateChanges()) {
+    renderTemplatePicker();
+    return;
+  }
+
+  const template = findTemplateById(selectedTemplateId);
   fillTemplateForm(template || createBlankTemplate());
+}
+
+function loadSelectedTemplate() {
+  openTemplateEditor(state.templateSelectionId || elements.templateSelect.value);
 }
 
 function bindTemplateFormDirtyTracking() {
@@ -403,6 +563,50 @@ function bindTemplateFormDirtyTracking() {
   ].forEach((element) => {
     element.addEventListener("input", updateTemplateChrome);
     element.addEventListener("change", updateTemplateChrome);
+  });
+}
+
+function bindTemplateBrowserInteractions() {
+  elements.templateSearchInput?.addEventListener("input", (event) => {
+    state.templateSearchQuery = event.target.value || "";
+    renderTemplatePicker();
+  });
+
+  elements.templateSelect?.addEventListener("change", (event) => {
+    setTemplateSelection(event.target.value || "");
+    renderTemplatePicker();
+  });
+
+  elements.templateListPanel?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-template-id]");
+    if (!item) {
+      return;
+    }
+
+    const templateId = item.dataset.templateId || "";
+    setTemplateSelection(templateId);
+    renderTemplatePicker();
+  });
+
+  elements.templateLibraryDetailPanel?.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-template-library-action]");
+    if (!action) {
+      return;
+    }
+
+    if (action.dataset.templateLibraryAction === "open-editor") {
+      openTemplateEditor();
+      return;
+    }
+
+    if (action.dataset.templateLibraryAction === "create-template") {
+      if (!confirmDiscardTemplateChanges()) {
+        return;
+      }
+      setTemplateSelection("");
+      fillTemplateForm(createBlankTemplate(), { keepSelection: true });
+      setCurrentView("template-editor");
+    }
   });
 }
 
@@ -442,18 +646,176 @@ function bindResumeImportInteractions() {
   });
 }
 
+function collectAppSettingsFormValues() {
+  const root = elements.settingsConfigPanel;
+  if (!root) {
+    return null;
+  }
+
+  const query = (selector) => root.querySelector(selector);
+
+  return {
+    ai: {
+      provider: query("#settings-ai-provider")?.value || "moonshot",
+      apiKey: query("#settings-ai-api-key")?.value || "",
+      model: query("#settings-ai-model")?.value || "",
+      baseUrl: query("#settings-ai-base-url")?.value || "",
+      thinking: query("#settings-ai-thinking")?.value || "enabled"
+    },
+    embedding: {
+      provider: query("#settings-embedding-provider")?.value || "",
+      apiKey: query("#settings-embedding-api-key")?.value || "",
+      model: query("#settings-embedding-model")?.value || "",
+      baseUrl: query("#settings-embedding-base-url")?.value || "",
+      dimensions: query("#settings-embedding-dimensions")?.value || "",
+      syncOnWrite: Boolean(query("#settings-embedding-sync-on-write")?.checked)
+    }
+  };
+}
+
+async function persistAppSettings() {
+  const payload = collectAppSettingsFormValues();
+  if (!payload) {
+    return;
+  }
+
+  state.appSettingsSaving = true;
+  state.appSettingsStatus = "正在保存...";
+  state.appSettingsStatusTone = "neutral";
+  renderSession();
+
+  try {
+    state.appSettings = await saveAppSettings(payload);
+    state.appSettingsError = "";
+    state.appSettingsStatus = "已保存并写入本地环境";
+    state.appSettingsStatusTone = "saved";
+    await refreshBootstrap();
+  } catch (error) {
+    state.appSettingsStatus = error.message || "设置保存失败";
+    state.appSettingsStatusTone = "error";
+    renderSession();
+  } finally {
+    state.appSettingsSaving = false;
+    renderSession();
+  }
+}
+
+function bindSettingsInteractions() {
+  elements.settingsConfigPanel?.addEventListener("click", (event) => {
+    const saveTrigger = event.target.closest("[data-settings-save]");
+    if (saveTrigger) {
+      void persistAppSettings();
+      return;
+    }
+
+    const resetTrigger = event.target.closest("[data-settings-reset]");
+    if (resetTrigger) {
+      state.appSettingsStatus = "";
+      state.appSettingsStatusTone = "neutral";
+      renderSession();
+    }
+  });
+
+  elements.settingsConfigPanel?.addEventListener("input", () => {
+    state.appSettingsStatus = "有未保存修改";
+    state.appSettingsStatusTone = "neutral";
+    const badge = elements.settingsConfigPanel?.querySelector(".settings-action-row .status-badge");
+    if (badge) {
+      badge.textContent = state.appSettingsStatus;
+      badge.className = "status-badge neutral";
+    }
+  });
+}
+
+function bindNavigationInteractions() {
+  elements.appShell?.addEventListener("click", (event) => {
+    const closeOverlayTrigger = event.target.closest("[data-close-overlay]");
+    if (closeOverlayTrigger) {
+      event.preventDefault();
+      state.currentOverlay = "";
+      state.currentOverlayTab = "";
+      renderSession();
+      return;
+    }
+
+    const openOverlayTrigger = event.target.closest("[data-open-overlay]");
+    if (openOverlayTrigger) {
+      event.preventDefault();
+      state.currentOverlay = openOverlayTrigger.dataset.openOverlay || "";
+      state.currentOverlayTab = state.currentOverlay === "review" ? "report" : "";
+      renderSession();
+      return;
+    }
+
+    const overlayTabTrigger = event.target.closest("[data-overlay-tab]");
+    if (overlayTabTrigger) {
+      event.preventDefault();
+      state.currentOverlayTab = overlayTabTrigger.dataset.overlayTab || "";
+      renderSession();
+      return;
+    }
+
+    const workspaceTrigger = event.target.closest("[data-session-workspace]");
+    if (workspaceTrigger) {
+      event.preventDefault();
+      state.currentSessionWorkspace = workspaceTrigger.dataset.sessionWorkspace || "realtime";
+      renderSession();
+      return;
+    }
+
+    const stageTrigger = event.target.closest("[data-plan-stage-index]");
+    if (stageTrigger) {
+      event.preventDefault();
+      state.selectedPlanStageIndex = stageTrigger.dataset.planStageIndex || "";
+      renderSession();
+      return;
+    }
+
+    const trigger = event.target.closest("[data-nav-view]");
+    if (!trigger) {
+      return;
+    }
+
+    event.preventDefault();
+    setCurrentView(trigger.dataset.navView);
+  });
+
+  window.addEventListener("hashchange", () => {
+    syncViewFromLocation();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.currentOverlay) {
+      state.currentOverlay = "";
+      state.currentOverlayTab = "";
+      renderSession();
+    }
+  });
+}
+
 export function bindUiEvents() {
   elements.loadTemplateButton.addEventListener("click", loadSelectedTemplate);
-  elements.newTemplateButton.addEventListener("click", () => fillTemplateForm(createBlankTemplate()));
+  elements.newTemplateButton.addEventListener("click", () => {
+    if (!confirmDiscardTemplateChanges()) {
+      return;
+    }
+    setTemplateSelection("");
+    fillTemplateForm(createBlankTemplate(), { keepSelection: true });
+    setCurrentView("template-editor");
+  });
   elements.copyTemplateButton.addEventListener("click", copyTemplate);
   elements.deleteTemplateButton.addEventListener("click", deleteCurrentTemplate);
   elements.saveTemplateButton.addEventListener("click", saveTemplate);
   elements.startButton.addEventListener("click", startInterview);
   elements.answerButton.addEventListener("click", submitAnswer);
   elements.answerInput.addEventListener("input", syncAnswerControls);
+  elements.webSearchInput.addEventListener("change", renderSession);
   bindTemplateFormDirtyTracking();
+  bindTemplateBrowserInteractions();
   bindObservabilityInteractions();
   bindDesktopInteractions();
+  bindSettingsInteractions();
   bindResumeImportInteractions();
+  bindNavigationInteractions();
   window.addEventListener("beforeunload", stopObservabilityPolling);
 }

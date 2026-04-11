@@ -2,9 +2,31 @@ function query(selector) {
   return document.querySelector(selector);
 }
 
-// DOM 节点统一在这里收口，避免各模块重复 querySelector。
+function queryAll(selector) {
+  return [...document.querySelectorAll(selector)];
+}
+
+// Keep DOM lookups centralized so page-shell refactors do not scatter selectors.
 export const elements = {
+  appShell: query(".app-shell"),
+  viewEyebrow: query("#view-eyebrow"),
+  viewTitle: query("#view-title"),
+  viewDescription: query("#view-description"),
+  navButtons: queryAll("[data-nav-view]"),
+  viewSections: queryAll("[data-view-section]"),
+  overlayRoot: query("#app-overlay"),
+  overlayCard: query("#app-overlay-card"),
+  overlayEyebrow: query("#app-overlay-eyebrow"),
+  overlayTitle: query("#app-overlay-title"),
+  overlayDescription: query("#app-overlay-description"),
+  overlayTabs: query("#app-overlay-tabs"),
+  overlayBody: query("#app-overlay-body"),
   providerBadge: query("#provider-badge"),
+  dashboardOverviewPanel: query("#dashboard-overview-panel"),
+  dashboardSessionPanel: query("#dashboard-session-panel"),
+  startSessionPanel: query("#start-session-panel"),
+  settingsOverviewPanel: query("#settings-overview-panel"),
+  settingsConfigPanel: query("#settings-config-panel"),
   candidateName: query("#candidate-name"),
   candidateRole: query("#candidate-role"),
   candidateSummary: query("#candidate-summary"),
@@ -12,11 +34,19 @@ export const elements = {
   resumePackageInput: query("#resume-package-input"),
   candidateYears: query("#candidate-years"),
   templateCount: query("#template-count"),
+  navSessionMode: query("#nav-session-mode"),
+  navActiveThread: query("#nav-active-thread"),
   sessionMode: query("#session-mode"),
   activeThread: query("#active-thread"),
+  sessionWorkspaceButtons: queryAll("[data-session-workspace]"),
+  sessionWorkspaceSections: queryAll("[data-session-workspace-section]"),
   templateStatus: query("#template-status"),
+  templateSearchInput: query("#template-search-input"),
+  templateListPanel: query("#template-list-panel"),
+  templateLibraryDetailPanel: query("#template-library-detail-panel"),
   templateSelect: query("#template-select"),
   templateMeta: query("#template-meta"),
+  templateEditorSummaryPanel: query("#template-editor-summary-panel"),
   loadTemplateButton: query("#load-template-button"),
   newTemplateButton: query("#new-template-button"),
   copyTemplateButton: query("#copy-template-button"),

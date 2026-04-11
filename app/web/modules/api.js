@@ -36,6 +36,17 @@ export function fetchDesktopRuntime() {
   return request("/api/desktop/runtime");
 }
 
+export function fetchAppSettings() {
+  return request("/api/settings");
+}
+
+export function saveAppSettings(payload) {
+  return request("/api/settings", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export function cleanupDesktopRuntime(target) {
   return request("/api/desktop/runtime/cleanup", {
     method: "POST",

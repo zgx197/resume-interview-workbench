@@ -8,6 +8,23 @@ export function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+export function escapeAttribute(value) {
+  return escapeHtml(value).replaceAll("`", "&#96;");
+}
+
+export function renderTooltip(text, { label = "?", className = "tooltip-trigger" } = {}) {
+  const safeTooltip = escapeAttribute(text || "");
+  const safeLabel = escapeHtml(label);
+  return `<span class="${escapeHtml(className)}" tabindex="0" role="note" data-tooltip="${safeTooltip}" title="${safeTooltip}" aria-label="${safeTooltip}">${safeLabel}</span>`;
+}
+
+export function renderLabelWithTooltip(label, tooltip, options = {}) {
+  return `<span class="label-with-tooltip ${escapeHtml(options.className || "")}">${escapeHtml(label)}${renderTooltip(tooltip, {
+    label: options.triggerLabel || "?",
+    className: options.triggerClassName || "tooltip-trigger"
+  })}</span>`;
+}
+
 export function formatDuration(durationMs) {
   if (!Number.isFinite(durationMs)) {
     return "--";
